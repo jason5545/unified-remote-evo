@@ -115,10 +115,12 @@ class MainActivity : ComponentActivity() {
 
             // ✅ 統一的初始化流程（確保執行順序）
             LaunchedEffect(Unit) {
-                // 1. 先載入已儲存裝置
+                // 先載入已儲存裝置
                 savedDevices = deviceHistoryManager.getAllDevices()
+            }
 
-                // 2. 然後執行自動連線（如果需要）
+            // ✅ 自動連線邏輯（單獨的 LaunchedEffect，避免互相干擾）
+            LaunchedEffect(Unit) {
                 if (shouldAutoConnect) {
                     shouldAutoConnect = false  // 只自動連線一次
                     val lastDevice = deviceHistoryManager.getLastDevice()
