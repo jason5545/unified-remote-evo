@@ -110,16 +110,15 @@ class MainActivity : ComponentActivity() {
             var savedDevices by remember { mutableStateOf<List<SavedDevice>>(emptyList()) }
             var currentDeviceId by remember { mutableStateOf<String?>(null) }
 
-            // ✅ 延遲載入已儲存裝置，避免初始化競爭
-            LaunchedEffect(Unit) {
-                savedDevices = deviceHistoryManager.getAllDevices()
-            }
-
             // ✅ 使用 ViewModel 的統一狀態
             val bleUiState by bleViewModel.uiState.collectAsStateWithLifecycle()
 
-            // 自動連線至最後的裝置
+            // ✅ 統一的初始化流程（確保執行順序）
             LaunchedEffect(Unit) {
+                // 1. 先載入已儲存裝置
+                savedDevices = deviceHistoryManager.getAllDevices()
+
+                // 2. 然後執行自動連線（如果需要）
                 if (shouldAutoConnect) {
                     shouldAutoConnect = false  // 只自動連線一次
                     val lastDevice = deviceHistoryManager.getLastDevice()
