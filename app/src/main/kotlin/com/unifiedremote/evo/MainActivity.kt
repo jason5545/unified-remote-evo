@@ -108,6 +108,7 @@ class MainActivity : ComponentActivity() {
             var mouseController by remember { mutableStateOf<MouseController?>(null) }
             var keyboardController by remember { mutableStateOf<KeyboardController?>(null) }
             var savedDevices by remember { mutableStateOf(deviceHistoryManager.getAllDevices()) }
+            var currentDeviceId by remember { mutableStateOf<String?>(null) }
 
             // ✅ 使用 ViewModel 的統一狀態
             val bleUiState by bleViewModel.uiState.collectAsStateWithLifecycle()
@@ -122,9 +123,10 @@ class MainActivity : ComponentActivity() {
                         delay(500)  // 短暫延遲確保 UI 已載入
                         connectSaved(
                             device = lastDevice,
-                            onSuccess = { mouse, keyboard ->
+                            onSuccess = { mouse, keyboard, deviceId ->
                                 mouseController = mouse
                                 keyboardController = keyboard
+                                currentDeviceId = deviceId
                             }
                         )
                     }
@@ -153,9 +155,10 @@ class MainActivity : ComponentActivity() {
                             connectTcp(
                                 host = host,
                                 port = port,
-                                onSuccess = { mouse, keyboard ->
+                                onSuccess = { mouse, keyboard, deviceId ->
                                     mouseController = mouse
                                     keyboardController = keyboard
+                                    currentDeviceId = deviceId
                                     savedDevices = deviceHistoryManager.getAllDevices()
                                 }
                             )
@@ -163,9 +166,10 @@ class MainActivity : ComponentActivity() {
                         onConnectBluetooth = { device ->
                             connectBluetooth(
                                 device = device,
-                                onSuccess = { mouse, keyboard ->
+                                onSuccess = { mouse, keyboard, deviceId ->
                                     mouseController = mouse
                                     keyboardController = keyboard
+                                    currentDeviceId = deviceId
                                     savedDevices = deviceHistoryManager.getAllDevices()
                                 }
                             )
@@ -178,9 +182,10 @@ class MainActivity : ComponentActivity() {
                         onConnectBleDevice = { address ->
                             connectBleEmulstickDeviceByAddress(
                                 address = address,
-                                onSuccess = { mouse, keyboard ->
+                                onSuccess = { mouse, keyboard, deviceId ->
                                     mouseController = mouse
                                     keyboardController = keyboard
+                                    currentDeviceId = deviceId
                                     savedDevices = deviceHistoryManager.getAllDevices()
                                 }
                             )
@@ -188,9 +193,10 @@ class MainActivity : ComponentActivity() {
                         onConnectSaved = { device ->
                             connectSaved(
                                 device = device,
-                                onSuccess = { mouse, keyboard ->
+                                onSuccess = { mouse, keyboard, deviceId ->
                                     mouseController = mouse
                                     keyboardController = keyboard
+                                    currentDeviceId = deviceId
                                     savedDevices = deviceHistoryManager.getAllDevices()
                                 }
                             )
@@ -203,6 +209,7 @@ class MainActivity : ComponentActivity() {
                             disconnectFromServer()
                             mouseController = null
                             keyboardController = null
+                            currentDeviceId = null
                         },
                         // XInput 模式切換（透過 ViewModel）
                         onXInputModeChange = { enabled ->
@@ -239,7 +246,8 @@ class MainActivity : ComponentActivity() {
                         keyboardController = keyboardController,
                         sensitivityManager = sensitivityManager,
                         themeManager = themeManager,
-                        connectionManager = connectionManager
+                        connectionManager = connectionManager,
+                        currentDeviceId = currentDeviceId
                     )
                 }
             }
@@ -365,7 +373,7 @@ class MainActivity : ComponentActivity() {
     private fun connectTcp(
         host: String,
         port: Int,
-        onSuccess: (MouseController, KeyboardController) -> Unit
+        onSuccess: (MouseController, KeyboardController, String) -> Unit
     ) {
         lifecycleScope.launch {
             try {
@@ -398,7 +406,8 @@ class MainActivity : ComponentActivity() {
                     connectionManager = manager
                     val mouse = MouseController(manager)
                     val keyboard = KeyboardController(manager)
-                    onSuccess(mouse, keyboard)
+                    val deviceId = "tcp_${host}_${port}"
+                    onSuccess(mouse, keyboard, deviceId)
                 } else {
                     ConnectionLogger.log("❌ 無法取得連線管理器", ConnectionLogger.LogLevel.ERROR)
                 }
@@ -414,7 +423,7 @@ class MainActivity : ComponentActivity() {
     @SuppressLint("MissingPermission")
     private fun connectBluetooth(
         device: BluetoothDevice,
-        onSuccess: (MouseController, KeyboardController) -> Unit
+        onSuccess: (MouseController, KeyboardController, String) -> Unit
     ) {
         lifecycleScope.launch {
             try {
@@ -450,7 +459,8 @@ class MainActivity : ComponentActivity() {
                     connectionManager = manager
                     val mouse = MouseController(manager)
                     val keyboard = KeyboardController(manager)
-                    onSuccess(mouse, keyboard)
+                    val deviceId = "bt_${device.address}"
+                    onSuccess(mouse, keyboard, deviceId)
                 } else {
                     ConnectionLogger.log("❌ 無法取得連線管理器", ConnectionLogger.LogLevel.ERROR)
                 }
@@ -467,7 +477,7 @@ class MainActivity : ComponentActivity() {
     @SuppressLint("MissingPermission")
     private fun connectBleEmulstickDeviceByAddress(
         address: String,
-        onSuccess: (MouseController, KeyboardController) -> Unit
+        onSuccess: (MouseController, KeyboardController, String) -> Unit
     ) {
         lifecycleScope.launch {
             try {
@@ -504,7 +514,8 @@ class MainActivity : ComponentActivity() {
                         val mouseAdapter = com.unifiedremote.evo.network.ble.BleMouseControllerAdapter(bleMouse, dummyConnection)
                         val keyboardAdapter = com.unifiedremote.evo.network.ble.BleKeyboardControllerAdapter(bleKeyboard, dummyConnection)
 
-                        onSuccess(mouseAdapter, keyboardAdapter)
+                        val deviceId = "ble_${connState.deviceAddress}"
+                        onSuccess(mouseAdapter, keyboardAdapter, deviceId)
                     }
                     is com.unifiedremote.evo.network.ble.BleConnectionState.Error -> {
                         ConnectionLogger.log("❌ BLE 連線錯誤: ${connState.message}", ConnectionLogger.LogLevel.ERROR)
@@ -525,7 +536,7 @@ class MainActivity : ComponentActivity() {
     @SuppressLint("MissingPermission")
     private fun connectSaved(
         device: SavedDevice,
-        onSuccess: (MouseController, KeyboardController) -> Unit
+        onSuccess: (MouseController, KeyboardController, String) -> Unit
     ) {
         when (device.type) {
             com.unifiedremote.evo.network.ConnectionType.TCP -> {
@@ -609,7 +620,8 @@ fun UnifiedRemoteEvoApp(
     keyboardController: KeyboardController?,
     sensitivityManager: SensitivityManager,
     themeManager: ThemeManager,
-    connectionManager: UnifiedConnectionManager?
+    connectionManager: UnifiedConnectionManager?,
+    currentDeviceId: String?
 ) {
     var currentScreen by remember { mutableStateOf(Screen.CONFIG) }
     val isConnected = mouseController != null && keyboardController != null
@@ -679,7 +691,16 @@ fun UnifiedRemoteEvoApp(
                     bleViewModel = if (bleConnectionState is com.unifiedremote.evo.network.ble.BleConnectionState.Connected) {
                         bleViewModel
                     } else null,
-                    onXInputModeChange = onXInputModeChange
+                    onXInputModeChange = onXInputModeChange,
+                    // 裝置切換支援
+                    savedDevices = savedDevices,
+                    currentDeviceId = currentDeviceId,
+                    onSwitchDevice = { device ->
+                        // 先中斷當前連線
+                        onDisconnect()
+                        // 連線至新裝置
+                        onConnectSaved(device)
+                    }
                 )
             } else {
                 currentScreen = Screen.CONFIG

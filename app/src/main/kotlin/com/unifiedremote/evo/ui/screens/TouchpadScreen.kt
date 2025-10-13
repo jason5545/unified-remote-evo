@@ -5,6 +5,7 @@ import android.view.MotionEvent
 import android.widget.Toast
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.gestures.detectDragGestures
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
@@ -33,6 +34,7 @@ import com.unifiedremote.evo.ui.util.NullCharFilterOffsetMapping
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.unifiedremote.evo.controller.KeyboardController
 import com.unifiedremote.evo.controller.MouseController
+import com.unifiedremote.evo.data.SavedDevice
 import com.unifiedremote.evo.network.ConnectionLogger
 import com.unifiedremote.evo.network.UnifiedConnectionState
 import com.unifiedremote.evo.network.ble.BleKeyboardControllerAdapter
@@ -60,11 +62,16 @@ fun TouchpadScreen(
     bluetoothConnectionState: StateFlow<UnifiedConnectionState>? = null,
     // BLE XInput 相關參數（改用 ViewModel）
     bleViewModel: BleViewModel? = null,
-    onXInputModeChange: ((Boolean) -> Unit)? = null
+    onXInputModeChange: ((Boolean) -> Unit)? = null,
+    // 裝置切換相關參數
+    savedDevices: List<SavedDevice> = emptyList(),
+    currentDeviceId: String? = null,
+    onSwitchDevice: ((SavedDevice) -> Unit)? = null
 ) {
     var isDragging by remember { mutableStateOf(false) }
     var showShortcutsDialog by remember { mutableStateOf(false) }
     var showInputPanel by remember { mutableStateOf(false) }
+    var showDeviceSwitcher by remember { mutableStateOf(false) }
 
     // ✅ 從 ViewModel 取得 XInput 狀態與控制器
     val isXInputMode by bleViewModel?.isXInputMode?.collectAsStateWithLifecycle()
@@ -117,7 +124,8 @@ fun TouchpadScreen(
                 showShortcutsDialog = showShortcutsDialog,
                 onShowShortcutsDialog = { showShortcutsDialog = it },
                 showInputPanel = showInputPanel,
-                onShowInputPanel = { showInputPanel = it }
+                onShowInputPanel = { showInputPanel = it },
+                onShowDeviceSwitcher = { showDeviceSwitcher = it }
             )
         }
 
@@ -153,6 +161,20 @@ fun TouchpadScreen(
                 )
             }
         }
+
+        if (showDeviceSwitcher) {
+            Dialog(onDismissRequest = { showDeviceSwitcher = false }) {
+                DeviceSwitcherDialog(
+                    savedDevices = savedDevices,
+                    currentDeviceId = currentDeviceId,
+                    onSelectDevice = { device ->
+                        showDeviceSwitcher = false
+                        onSwitchDevice?.invoke(device)
+                    },
+                    onDismiss = { showDeviceSwitcher = false }
+                )
+            }
+        }
     }
 }
 
@@ -177,7 +199,8 @@ private fun TouchpadModeUI(
     showShortcutsDialog: Boolean,
     onShowShortcutsDialog: (Boolean) -> Unit,
     showInputPanel: Boolean,
-    onShowInputPanel: (Boolean) -> Unit
+    onShowInputPanel: (Boolean) -> Unit,
+    onShowDeviceSwitcher: (Boolean) -> Unit = {}
 ) {
     Box(modifier = Modifier.fillMaxSize()) {
         // 全螢幕觸控板
@@ -232,6 +255,7 @@ private fun TouchpadModeUI(
             onSettings = onShowSettings,
             onDebug = onShowDebug,
             onDisconnect = onDisconnect,
+            onSwitchDevice = { onShowDeviceSwitcher(true) },
             isBleMode = bleManager != null,
             isXInputMode = isXInputMode,
             onXInputToggle = onXInputToggle,
@@ -466,6 +490,7 @@ fun TopControlBar(
     onSettings: () -> Unit,
     onDebug: () -> Unit,
     onDisconnect: () -> Unit,
+    onSwitchDevice: () -> Unit = {},
     modifier: Modifier = Modifier,
     isBleMode: Boolean = false,
     isXInputMode: Boolean = false,
@@ -484,6 +509,9 @@ fun TopControlBar(
             verticalAlignment = Alignment.CenterVertically
         ) {
             Row(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+                TextButton(onClick = onSwitchDevice) {
+                    Text("🔄", style = MaterialTheme.typography.titleMedium)
+                }
                 TextButton(onClick = onSettings) {
                     Text("⚙️")
                 }
@@ -1205,6 +1233,146 @@ fun HardwareIndicator(
                 style = MaterialTheme.typography.bodyMedium,
                 fontWeight = androidx.compose.ui.text.font.FontWeight.Bold
             )
+        }
+    }
+}
+
+// 裝置切換彈出式視窗
+@Composable
+fun DeviceSwitcherDialog(
+    savedDevices: List<SavedDevice>,
+    currentDeviceId: String?,
+    onSelectDevice: (SavedDevice) -> Unit,
+    onDismiss: () -> Unit
+) {
+    Surface(
+        shape = MaterialTheme.shapes.large,
+        color = MaterialTheme.colorScheme.surface,
+        modifier = Modifier
+            .widthIn(max = 400.dp)
+            .heightIn(max = 600.dp)
+    ) {
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(16.dp)
+        ) {
+            // 標題列
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Text(
+                    "切換裝置",
+                    style = MaterialTheme.typography.titleLarge
+                )
+                TextButton(onClick = onDismiss) {
+                    Text("關閉")
+                }
+            }
+
+            Spacer(modifier = Modifier.height(16.dp))
+
+            // 裝置列表
+            if (savedDevices.isEmpty()) {
+                Box(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(32.dp),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Text(
+                        text = "尚無儲存的裝置",
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                }
+            } else {
+                Column(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .verticalScroll(rememberScrollState())
+                ) {
+                    savedDevices.forEach { device ->
+                        val isCurrentDevice = device.id == currentDeviceId
+
+                        Card(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(vertical = 4.dp),
+                            colors = if (isCurrentDevice) {
+                                CardDefaults.cardColors(
+                                    containerColor = MaterialTheme.colorScheme.primaryContainer
+                                )
+                            } else {
+                                CardDefaults.cardColors()
+                            }
+                        ) {
+                            Row(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .clickable(enabled = !isCurrentDevice) {
+                                        onSelectDevice(device)
+                                    }
+                                    .padding(16.dp),
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                // 裝置類型圖示
+                                val typeIcon = when (device.type) {
+                                    com.unifiedremote.evo.network.ConnectionType.TCP -> "📶"
+                                    com.unifiedremote.evo.network.ConnectionType.BLUETOOTH -> "📡"
+                                    com.unifiedremote.evo.network.ConnectionType.BLE_EMULSTICK -> "🔌"
+                                }
+
+                                Text(
+                                    text = typeIcon,
+                                    style = MaterialTheme.typography.headlineMedium,
+                                    modifier = Modifier.padding(end = 16.dp)
+                                )
+
+                                // 裝置資訊
+                                Column(modifier = Modifier.weight(1f)) {
+                                    Row(verticalAlignment = Alignment.CenterVertically) {
+                                        Text(
+                                            text = device.name,
+                                            style = MaterialTheme.typography.titleMedium,
+                                            fontWeight = if (isCurrentDevice) {
+                                                androidx.compose.ui.text.font.FontWeight.Bold
+                                            } else {
+                                                androidx.compose.ui.text.font.FontWeight.Normal
+                                            }
+                                        )
+                                        if (isCurrentDevice) {
+                                            Spacer(modifier = Modifier.width(8.dp))
+                                            Text(
+                                                text = "✓",
+                                                style = MaterialTheme.typography.titleMedium,
+                                                color = MaterialTheme.colorScheme.primary
+                                            )
+                                        }
+                                    }
+                                    Spacer(modifier = Modifier.height(4.dp))
+                                    Text(
+                                        text = device.getSubtitle(),
+                                        style = MaterialTheme.typography.bodySmall,
+                                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                                    )
+                                    Text(
+                                        text = when (device.type) {
+                                            com.unifiedremote.evo.network.ConnectionType.TCP -> "WiFi/Tailscale"
+                                            com.unifiedremote.evo.network.ConnectionType.BLUETOOTH -> "傳統藍牙"
+                                            com.unifiedremote.evo.network.ConnectionType.BLE_EMULSTICK -> "BLE EmulStick"
+                                        },
+                                        style = MaterialTheme.typography.labelSmall,
+                                        color = MaterialTheme.colorScheme.secondary
+                                    )
+                                }
+                            }
+                        }
+                    }
+                }
+            }
         }
     }
 }
