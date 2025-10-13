@@ -112,11 +112,6 @@
   - 編輯：複製、貼上、剪下、復原、全選
   - 系統：儲存、尋找、關閉、Alt+Tab、Alt+F4
 
-- 🎯 **BLE IME Direct 模式**（EmulStick 專用）
-  - 支援中文輸入（CustomIn 報告）
-  - UTF-8 安全切割（避免亂碼）
-  - 即時傳送模式
-
 **除錯工具：**
 - 即時連線日誌
 - 統計資訊（總計/錯誤/警告/資訊）
@@ -148,7 +143,6 @@
 - ✅ **NumLock 自動啟用**（Alt 碼輸入支援）
 - ✅ **LED 狀態追蹤**（NumLock/CapsLock/ScrollLock）
 - ✅ **MouseV1/SingleKeyboard 支援**（Ver ≥1 裝置）
-- ✅ **IME Direct 模式**（中英文混合輸入）
 - ✅ **裝置歷史管理**（快速重連）
 - ✅ **XInput 模式**（Xbox 360 控制器模擬）
 
@@ -540,7 +534,7 @@ data class Action(
 ```
 EmulStick Service (0xF800)
 ├── CH1 (0xF801) - 鍵盤 HID Report
-├── CH2 (0xF802) - CustomIn Report（IME Direct）
+├── CH2 (0xF802) - 遊戲手把 HID Report
 ├── CH3 (0xF803) - 滑鼠 HID Report (Ver ≥1)
 ├── CH4 (0xF804) - 觸控筆/多媒體 HID Report
 └── COMMAND (0xF80F) - 控制指令（身份驗證）
@@ -748,16 +742,16 @@ mouseController.hscroll(delta = -2) // 向左滾動
 
 **解決方案：**
 
-1. **使用 IME Direct 模式**
-   - 直接在 📝 輸入面板輸入
-   - 不使用組合鍵
+1. **使用 Alt 碼模式**
+   - 在 📝 輸入面板切換到 Big5 Alt 碼模式
+   - 確認 NumLock 已啟用
 
 2. **檢查除錯日誌**
-   - 查看 "Sent text via IME" 訊息
-   - 確認 UTF-8 編碼正常
+   - 查看 LED 狀態
+   - 確認 NumLock 顯示為開啟
 
 3. **確認 EmulStick 版本**
-   - Ver ≥1 支援 CustomIn 報告
+   - Ver ≥1 支援 Alt 碼輸入
 
 ### XInput 模式問題
 
@@ -1099,10 +1093,10 @@ EmulStick 接收器使用 AES 加密進行身份驗證：
 支援最多 6 個按鍵同時按下
 ```
 
-**CustomIn（CH2, 19 bytes）**：
+**XInput（CH2, 20 bytes）**：
 ```
-[Report ID=40][資料類型=32][資料長度][UTF-8 資料（最多 16 bytes）]
-用於中英文混合輸入（IME Direct 模式）
+[固定值][長度][D-Pad+按鈕1][按鈕2][LT][RT][左搖桿X][左搖桿Y][右搖桿X][右搖桿Y][保留×6]
+用於 Xbox 360 控制器模擬
 ```
 
 ### Xbox 360 控制器格式（20 bytes）
