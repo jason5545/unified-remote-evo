@@ -73,7 +73,7 @@ data class Capabilities(
 )
 
 /**
- * Layout 結構（用於發送控制指令）
+ * Layout 結構（用於傳送控制指令）
  */
 data class Layout(
     var id: String? = null,

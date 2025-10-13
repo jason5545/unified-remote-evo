@@ -85,7 +85,7 @@ class BleRemoteController(context: Context) : RemoteController {
     }
 
     override suspend fun typeText(text: String) {
-        // 逐字元發送（需要轉換為 HID 按鍵序列）
+        // 逐字元傳送（需要轉換為 HID 按鍵序列）
         // 這裡先簡單實作，實際需要完整的字元映射表
         text.forEach { char ->
             val (usageId, needShift) = charToUsageId(char)

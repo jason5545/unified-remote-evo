@@ -205,7 +205,7 @@ fun ServerConfigScreen(
                     .height(56.dp)
             ) {
                 Text(
-                    if (isConnecting) "連接中..." else "連接",
+                    if (isConnecting) "連線中..." else "連線",
                     style = MaterialTheme.typography.titleMedium
                 )
             }
@@ -213,7 +213,7 @@ fun ServerConfigScreen(
             Spacer(modifier = Modifier.height(16.dp))
 
             Text(
-                text = if (isConnecting) "正在連接..." else "針對 Tailscale 環境優化",
+                text = if (isConnecting) "正在連線..." else "針對 Tailscale 環境最佳化",
                 style = MaterialTheme.typography.bodySmall,
                 color = if (isConnecting)
                     MaterialTheme.colorScheme.primary
@@ -269,7 +269,7 @@ fun ServerConfigScreen(
                 Spacer(modifier = Modifier.height(16.dp))
 
                 Text(
-                    text = if (isConnecting) "正在連接..." else "點選裝置進行連接",
+                    text = if (isConnecting) "正在連線..." else "點選裝置進行連線",
                     style = MaterialTheme.typography.bodySmall,
                     color = if (isConnecting)
                         MaterialTheme.colorScheme.primary
@@ -411,7 +411,7 @@ fun ServerConfigScreen(
                     .height(56.dp)
             ) {
                 Text(
-                    if (isBleConnecting) "連接中..." else "直接連線",
+                    if (isBleConnecting) "連線中..." else "直接連線",
                     style = MaterialTheme.typography.titleMedium
                 )
             }
@@ -518,11 +518,11 @@ fun ServerConfigScreen(
 
                 Text(
                     text = if (isBleConnecting) {
-                        "正在連接..."
+                        "正在連線..."
                     } else if (isScanning) {
                         "正在掃描..."
                     } else {
-                        "點選裝置進行連接"
+                        "點選裝置進行連線"
                     },
                     style = MaterialTheme.typography.bodySmall,
                     color = if (isBleConnecting || isScanning)

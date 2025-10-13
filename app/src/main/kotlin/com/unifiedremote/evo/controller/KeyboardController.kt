@@ -52,7 +52,7 @@ open class KeyboardController(
             val action = Action("Text", "Core.Input", extras)
 
             val preview = if (text.length > 20) "${text.take(20)}..." else text
-            ConnectionLogger.log("發送文字: '$preview'", ConnectionLogger.LogLevel.DEBUG)
+            ConnectionLogger.log("傳送文字: '$preview'", ConnectionLogger.LogLevel.DEBUG)
 
             connection.send(createControlPacket(action))
         }
@@ -69,9 +69,9 @@ open class KeyboardController(
             val action = Action("Press", "Core.Input", extras)
 
             val logMsg = if (modifiers.isEmpty()) {
-                "發送按鍵: ${key.uppercase()}"
+                "傳送按鍵: ${key.uppercase()}"
             } else {
-                "發送組合鍵: ${modifiers.joinToString("+"){ it.uppercase() }}+${key.uppercase()}"
+                "傳送組合鍵: ${modifiers.joinToString("+"){ it.uppercase() }}+${key.uppercase()}"
             }
             android.util.Log.d("KeyboardController", logMsg)
             ConnectionLogger.log(logMsg, ConnectionLogger.LogLevel.DEBUG)

@@ -43,7 +43,7 @@ class BleMouseController(
 
     fun doubleClick() {
         launch {
-            // 發送兩次左鍵點擊
+            // 傳送兩次左鍵點擊
             bleManager.sendMouseClick(HidReportBuilder.MOUSE_BUTTON_LEFT)
             kotlinx.coroutines.delay(50)
             bleManager.sendMouseClick(HidReportBuilder.MOUSE_BUTTON_LEFT)
@@ -65,14 +65,14 @@ class BleMouseController(
 
     fun up(button: String = "left") {
         launch {
-            // 釋放按鍵（發送無按鍵狀態）
+            // 釋放按鍵（傳送無按鍵狀態）
             bleManager.sendMouseMove(0, 0, 0)
         }
     }
 
     fun scroll(delta: Int) {
         launch {
-            // HID 滾輪範圍 -15 ~ +15，可能需要分多次發送
+            // HID 滾輪範圍 -15 ~ +15，可能需要分多次傳送
             val clampedDelta = delta.coerceIn(-15, 15)
             bleManager.sendMouseScroll(clampedDelta)
         }

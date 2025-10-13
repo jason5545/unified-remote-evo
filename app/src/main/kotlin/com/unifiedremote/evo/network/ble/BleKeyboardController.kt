@@ -27,7 +27,7 @@ enum class BleTextInputMode {
  * BLE 鍵盤控制器（EmulStick HID 模式）
  *
  * 使用混合模式支援中英文輸入：
- * - ASCII 字元：HID 直接發送（快速）
+ * - ASCII 字元：HID 直接傳送（快速）
  * - 中文字元：Alt+X Unicode（Windows 原生支援）
  */
 class BleKeyboardController(
@@ -125,7 +125,7 @@ class BleKeyboardController(
     /**
      * 使用 HID Unicode 模式輸入文字（ESP32-S3 Evo 專用）
      *
-     * 使用 CH5 characteristic 直接發送 Unicode 字元，
+     * 使用 CH5 characteristic 直接傳送 Unicode 字元，
      * 速度比 Alt+X Unicode 快 4.25 倍（~40ms vs ~170ms）。
      *
      * @param text 要輸入的文字
@@ -136,7 +136,7 @@ class BleKeyboardController(
                 '\n' -> bleManager.sendKeyPress(0, HidReportBuilder.KeyboardUsage.KEY_ENTER)
                 '\t' -> bleManager.sendKeyPress(0, HidReportBuilder.KeyboardUsage.KEY_TAB)
                 else -> {
-                    // 直接發送 Unicode（CH5）
+                    // 直接傳送 Unicode（CH5）
                     bleManager.sendUnicodeChar(char)
                 }
             }

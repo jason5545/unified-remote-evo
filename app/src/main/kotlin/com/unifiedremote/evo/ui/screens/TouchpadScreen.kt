@@ -375,7 +375,7 @@ fun VerticalScrollBar(
                     // 累積滾動量（套用靈敏度）
                     accumulatedScroll -= dragAmount.y / sensitivity
 
-                    // 當累積量超過 1 時發送
+                    // 當累積量超過 1 時傳送
                     val delta = accumulatedScroll.toInt()
                     if (delta != 0) {
                         mouseController.scroll(delta)
@@ -410,7 +410,7 @@ fun HorizontalScrollBar(
                     // 累積滾動量（套用靈敏度）
                     accumulatedScroll += dragAmount.x / sensitivity
 
-                    // 當累積量超過 1 時發送
+                    // 當累積量超過 1 時傳送
                     val delta = accumulatedScroll.toInt()
                     if (delta != 0) {
                         mouseController.hscroll(delta)
@@ -552,12 +552,12 @@ fun InputPanelContent(
     var showFKeys by remember { mutableStateOf(false) }
     var showOtherKeys by remember { mutableStateOf(false) }
 
-    // 發送組合鍵
+    // 傳送組合鍵
     fun sendCombination() {
         val text = textInput.text.replace("\u0000", "")  // 移除空字元
 
         if (text.isNotEmpty()) {
-            // 發送每個字元作為組合鍵
+            // 傳送每個字元作為組合鍵
             for (char in text) {
                 if (char == '\n') {
                     if (modifierKeys.isEmpty()) {
@@ -581,7 +581,7 @@ fun InputPanelContent(
         }
     }
 
-    // ✅ 監聽文字變化並即時發送（模仿原廠 TextWatcher.onTextChanged）
+    // ✅ 監聽文字變化並即時傳送（模仿原廠 TextWatcher.onTextChanged）
     LaunchedEffect(textInput.text) {
         if (isResetting) return@LaunchedEffect  // 重置時不處理
 
@@ -736,7 +736,7 @@ fun InputPanelContent(
                     textInput = newValue
                 }
             },
-            label = { Text(if (modifierKeys.isEmpty()) "文字輸入（即時發送）" else "文字輸入") },
+            label = { Text(if (modifierKeys.isEmpty()) "文字輸入（即時傳送）" else "文字輸入") },
             maxLines = 3,
             visualTransformation = { text ->
                 // 過濾掉空字元，讓使用者看到的是乾淨的輸入框
@@ -752,7 +752,7 @@ fun InputPanelContent(
                 .height(120.dp)
         )
 
-        // 發送按鈕（當有修飾鍵時顯示）
+        // 傳送按鈕（當有修飾鍵時顯示）
         if (modifierKeys.isNotEmpty()) {
             Spacer(modifier = Modifier.height(8.dp))
             Button(
@@ -764,7 +764,7 @@ fun InputPanelContent(
                     modifierKeys.forEach { append(it.uppercase()).append(" + ") }
                     append(if (text.isEmpty()) "..." else text)
                 }
-                Text("發送: $preview")
+                Text("傳送: $preview")
             }
         }
 

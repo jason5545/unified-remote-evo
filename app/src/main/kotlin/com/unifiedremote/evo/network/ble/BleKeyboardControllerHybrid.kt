@@ -34,17 +34,17 @@ class BleKeyboardControllerHybrid(
     }
 
     /**
-     * 發送文字（混合模式：ASCII 走 HID，中文走 Alt+X Unicode）
+     * 傳送文字（混合模式：ASCII 走 HID，中文走 Alt+X Unicode）
      *
-     * @param text 要發送的文字（中英文混合）
+     * @param text 要傳送的文字（中英文混合）
      */
     suspend fun sendTextHybrid(text: String) {
         if (text.isEmpty()) {
-            Log.d(TAG, "文字為空，略過發送")
+            Log.d(TAG, "文字為空，略過傳送")
             return
         }
 
-        Log.d(TAG, "開始發送混合文字（Alt+X 模式）：\"$text\"（共 ${text.length} 字元）")
+        Log.d(TAG, "開始傳送混合文字（Alt+X 模式）：\"$text\"（共 ${text.length} 字元）")
         var asciiCount = 0
         var unicodeCount = 0
         var specialCount = 0
@@ -71,11 +71,11 @@ class BleKeyboardControllerHybrid(
             }
         }
 
-        Log.d(TAG, "✅ 混合文字發送完成：ASCII=$asciiCount, Unicode=$unicodeCount, 特殊=$specialCount")
+        Log.d(TAG, "✅ 混合文字傳送完成：ASCII=$asciiCount, Unicode=$unicodeCount, 特殊=$specialCount")
     }
 
     /**
-     * 發送 ASCII 字元（HID 模式）
+     * 傳送 ASCII 字元（HID 模式）
      *
      * @param char ASCII 字元
      */
@@ -92,7 +92,7 @@ class BleKeyboardControllerHybrid(
     }
 
     /**
-     * 發送中文/Unicode 字元（使用 Alt+X Unicode 模式）
+     * 傳送中文/Unicode 字元（使用 Alt+X Unicode 模式）
      *
      * 技術變更（2025-10-12）：
      * - ❌ 舊：Big5 Alt 碼（Alt+42148）- Windows 10 不支援
@@ -111,12 +111,12 @@ class BleKeyboardControllerHybrid(
      */
     private suspend fun sendUnicodeChar(char: Char) {
         // 🔄 直接使用 Alt+X Unicode 模式（不再使用 Big5 編碼）
-        Log.d(TAG, "發送字元 '$char' (Alt+X Unicode)")
+        Log.d(TAG, "傳送字元 '$char' (Alt+X Unicode)")
         bleManager.sendCharWithAltX(char)
     }
 
     /**
-     * 發送 Enter 鍵
+     * 傳送 Enter 鍵
      */
     private suspend fun sendEnter() {
         bleManager.sendKeyPress(keys = intArrayOf(HidReportBuilder.KeyboardUsage.KEY_ENTER))
@@ -124,7 +124,7 @@ class BleKeyboardControllerHybrid(
     }
 
     /**
-     * 發送 Tab 鍵
+     * 傳送 Tab 鍵
      */
     private suspend fun sendTab() {
         bleManager.sendKeyPress(keys = intArrayOf(HidReportBuilder.KeyboardUsage.KEY_TAB))

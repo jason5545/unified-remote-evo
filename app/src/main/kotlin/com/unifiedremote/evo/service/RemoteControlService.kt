@@ -67,7 +67,7 @@ class RemoteControlService : Service() {
         currentConnectionType = ConnectionType.TCP
 
         _connectionState.value = ServiceConnectionState.Connecting("TCP", "$host:$port")
-        updateNotification("連線中...", "正在連接到 $host:$port")
+        updateNotification("連線中...", "正在連線到 $host:$port")
 
         try {
             val manager = UnifiedConnectionManager(this).apply {
@@ -110,7 +110,7 @@ class RemoteControlService : Service() {
 
         val deviceName = device.name ?: "未命名裝置"
         _connectionState.value = ServiceConnectionState.Connecting("藍牙", deviceName)
-        updateNotification("連線中...", "正在連接到 $deviceName")
+        updateNotification("連線中...", "正在連線到 $deviceName")
 
         try {
             val manager = UnifiedConnectionManager(this).apply {
@@ -152,7 +152,7 @@ class RemoteControlService : Service() {
         currentConnectionType = ConnectionType.BLE_EMULSTICK
 
         _connectionState.value = ServiceConnectionState.Connecting("BLE", deviceAddress)
-        updateNotification("連線中...", "正在連接到 BLE 裝置")
+        updateNotification("連線中...", "正在連線到 BLE 裝置")
 
         try {
             val manager = BleManager(this).apply {

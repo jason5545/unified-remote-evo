@@ -154,7 +154,7 @@ class BleManager(private val context: Context) {
      *
      * 目的：
      * - 解決 GATT 報告丟失問題（Alt 碼輸入錯誤）
-     * - 確保所有 HID 報告依序發送，不會因為 GATT 佇列溢出而丟失
+     * - 確保所有 HID 報告依序傳送，不會因為 GATT 佇列溢出而丟失
      * - 與原廠行為完全一致
      */
     private inner class BleActionQueue {
@@ -567,12 +567,12 @@ class BleManager(private val context: Context) {
     }
 
     /**
-     * 直接用 MAC 地址連接（不需要掃描）
+     * 直接用 MAC 地址連線（不需要掃描）
      *
-     * 這是 EmulStick 推薦的連接方式，不依賴 BLE 掃描
+     * 這是 EmulStick 建議的連線方式，不依賴 BLE 掃描
      *
      * @param address MAC 地址（例如："60:B6:E1:B4:6A:76"）
-     * @return 是否成功開始連接
+     * @return 是否成功開始連線
      */
     fun connectByAddress(address: String): Boolean {
         if (bluetoothAdapter == null || !bluetoothAdapter!!.isEnabled) {
@@ -585,7 +585,7 @@ class BleManager(private val context: Context) {
         try {
             // 直接用 MAC 地址取得 BluetoothDevice（不需要掃描）
             val device = bluetoothAdapter!!.getRemoteDevice(address)
-            Log.d(TAG, "準備連接到裝置: $address")
+            Log.d(TAG, "準備連線到裝置: $address")
             connectToDevice(device)
             return true
         } catch (e: IllegalArgumentException) {
@@ -973,7 +973,7 @@ class BleManager(private val context: Context) {
     // ============ 資料傳輸 ============
 
     /**
-     * 發送滑鼠移動
+     * 傳送滑鼠移動
      *
      * @param deltaX X 軸移動量
      * @param deltaY Y 軸移動量
@@ -984,13 +984,13 @@ class BleManager(private val context: Context) {
         Log.d(TAG, "📍 sendMouseMove() 被呼叫：deltaX=$deltaX, deltaY=$deltaY, isConnected=$connected")
 
         if (!connected) {
-            Log.w(TAG, "❌ 未連線，無法發送滑鼠移動（connectionState=${_connectionState.value}）")
-            ConnectionLogger.log("❌ 未連線，無法發送滑鼠移動", ConnectionLogger.LogLevel.WARNING)
+            Log.w(TAG, "❌ 未連線，無法傳送滑鼠移動（connectionState=${_connectionState.value}）")
+            ConnectionLogger.log("❌ 未連線，無法傳送滑鼠移動", ConnectionLogger.LogLevel.WARNING)
             return
         }
 
-        Log.d(TAG, "✅ 已連線，準備發送滑鼠移動")
-        ConnectionLogger.log("✅ 已連線，準備發送滑鼠移動", ConnectionLogger.LogLevel.DEBUG)
+        Log.d(TAG, "✅ 已連線，準備傳送滑鼠移動")
+        ConnectionLogger.log("✅ 已連線，準備傳送滑鼠移動", ConnectionLogger.LogLevel.DEBUG)
 
         // 大幅度移動需要分割
         val reports = HidReportBuilder.buildSplitMouseReports(deltaX, deltaY, buttons)
@@ -1003,13 +1003,13 @@ class BleManager(private val context: Context) {
     }
 
     /**
-     * 發送滑鼠點擊
+     * 傳送滑鼠點擊
      *
      * @param button 按鈕（使用 HidReportBuilder.MOUSE_BUTTON_* 常量）
      */
     fun sendMouseClick(button: Int) {
         if (!isConnected()) {
-            Log.w(TAG, "未連線，無法發送滑鼠點擊")
+            Log.w(TAG, "未連線，無法傳送滑鼠點擊")
             return
         }
 
@@ -1022,37 +1022,37 @@ class BleManager(private val context: Context) {
     }
 
     /**
-     * 發送滑鼠滾輪
+     * 傳送滑鼠滾輪
      *
      * @param wheelDelta 滾輪值（負數向上，正數向下）
      *
-     * 注意：根據原廠實作，滾輪發送後需要立即重置為 0
+     * 注意：根據原廠實作，滾輪傳送後需要立即重置為 0
      * 參考：ReportMouse.java:128 - usageCache.setValue(0)
      */
     fun sendMouseScroll(wheelDelta: Int) {
         if (!isConnected()) {
-            Log.w(TAG, "未連線，無法發送滑鼠滾輪")
+            Log.w(TAG, "未連線，無法傳送滑鼠滾輪")
             return
         }
 
-        // 發送滾輪移動
+        // 傳送滾輪移動
         writeMouseReport(HidReportBuilder.buildMouseReport(wheel = wheelDelta))
 
-        // 立即發送重置報告（模仿原廠 usageCache.setValue(0)）
+        // 立即傳送重置報告（模仿原廠 usageCache.setValue(0)）
         mainHandler.postDelayed({
             writeMouseReport(HidReportBuilder.buildMouseReport(wheel = 0))
         }, 10)  // 10ms 後重置
     }
 
     /**
-     * 發送鍵盤按鍵
+     * 傳送鍵盤按鍵
      *
      * @param modifiers 修飾鍵
      * @param keys 按鍵 Usage ID
      */
     fun sendKeyPress(modifiers: Int = 0, vararg keys: Int) {
         if (!isConnected()) {
-            Log.w(TAG, "未連線，無法發送鍵盤按鍵")
+            Log.w(TAG, "未連線，無法傳送鍵盤按鍵")
             return
         }
 
@@ -1065,7 +1065,7 @@ class BleManager(private val context: Context) {
     }
 
     /**
-     * 發送 Alt 碼（用於 Big5 Alt 碼模式）
+     * 傳送 Alt 碼（用於 Big5 Alt 碼模式）
      *
      * 工作原理：
      * 1. 確保 NumLock 開啟
@@ -1082,12 +1082,12 @@ class BleManager(private val context: Context) {
      */
     suspend fun sendAltCode(decimalCode: Int) {
         if (!isConnected()) {
-            Log.w(TAG, "未連線，無法發送 Alt 碼")
+            Log.w(TAG, "未連線，無法傳送 Alt 碼")
             return
         }
 
-        Log.d(TAG, "📤 發送 Alt 碼：$decimalCode (0x${decimalCode.toString(16).uppercase()})")
-        ConnectionLogger.log("📤 發送 Alt 碼：$decimalCode", ConnectionLogger.LogLevel.INFO)
+        Log.d(TAG, "📤 傳送 Alt 碼：$decimalCode (0x${decimalCode.toString(16).uppercase()})")
+        ConnectionLogger.log("📤 傳送 Alt 碼：$decimalCode", ConnectionLogger.LogLevel.INFO)
 
         // Step 0: 清空鍵盤狀態（與原廠 clear() 一致，無延遲）
         writeKeyboardReport(HidReportBuilder.buildEmptyKeyboardReport())
@@ -1124,8 +1124,8 @@ class BleManager(private val context: Context) {
         actionQueue.enqueue(BleAction.Delay(12))  // 與原廠一致
         Log.v(TAG, "  ⬆️ 釋放 Alt 鍵")
 
-        Log.d(TAG, "✅ Alt 碼發送完成：$decimalCode")
-        ConnectionLogger.log("✅ Alt 碼發送完成", ConnectionLogger.LogLevel.DEBUG)
+        Log.d(TAG, "✅ Alt 碼傳送完成：$decimalCode")
+        ConnectionLogger.log("✅ Alt 碼傳送完成", ConnectionLogger.LogLevel.DEBUG)
     }
 
     /**
@@ -1151,7 +1151,7 @@ class BleManager(private val context: Context) {
     }
 
     /**
-     * 發送 Unicode Alt 碼序列（已棄用，代理到 Alt+X Unicode 模式）
+     * 傳送 Unicode Alt 碼序列（已棄用，代理到 Alt+X Unicode 模式）
      *
      * ⚠️ 此方法已改用 Alt+X Unicode 模式（代理模式）
      *
@@ -1217,7 +1217,7 @@ class BleManager(private val context: Context) {
     // ============ Alt+X Unicode 模式（新實作）============
 
     /**
-     * 使用 Alt+X Unicode 模式發送單個字元
+     * 使用 Alt+X Unicode 模式傳送單個字元
      *
      * Windows Alt+X 工作原理：
      * 1. 輸入 Unicode 十六進制（如：54C8）
@@ -1237,56 +1237,56 @@ class BleManager(private val context: Context) {
      * - 不支援 Emoji（需要 Surrogate Pair）
      * - 部分應用程式可能不支援（如 VS Code、Chrome）
      *
-     * @param char 要發送的字元
+     * @param char 要傳送的字元
      */
     suspend fun sendCharWithAltX(char: Char) {
         if (!isConnected()) {
-            Log.w(TAG, "未連線，無法發送 Alt+X Unicode")
+            Log.w(TAG, "未連線，無法傳送 Alt+X Unicode")
             return
         }
 
         // 取得 Unicode 十六進制（大寫，4 位數）
         val unicodeHex = char.code.toString(16).uppercase().padStart(4, '0')
 
-        Log.d(TAG, "📤 發送 Alt+X Unicode：'$char' (U+$unicodeHex)")
-        ConnectionLogger.log("📤 發送 Alt+X：'$char' (U+$unicodeHex)", ConnectionLogger.LogLevel.INFO)
+        Log.d(TAG, "📤 傳送 Alt+X Unicode：'$char' (U+$unicodeHex)")
+        ConnectionLogger.log("📤 傳送 Alt+X：'$char' (U+$unicodeHex)", ConnectionLogger.LogLevel.INFO)
 
-        // 1. 發送十六進制字元（使用標準 ASCII HID 報告）
+        // 1. 傳送十六進制字元（使用標準 ASCII HID 報告）
         for ((index, hexChar) in unicodeHex.withIndex()) {
-            Log.v(TAG, "  🔢 步驟 1.${index + 1}: 發送 '$hexChar'")
+            Log.v(TAG, "  🔢 步驟 1.${index + 1}: 傳送 '$hexChar'")
             sendAsciiKeyPress(hexChar)
             actionQueue.enqueue(BleAction.Delay(12))
         }
 
-        // 2. 發送 Alt+X 組合鍵
-        Log.v(TAG, "  ⌨️ 步驟 2: 發送 Alt+X")
+        // 2. 傳送 Alt+X 組合鍵
+        Log.v(TAG, "  ⌨️ 步驟 2: 傳送 Alt+X")
         sendKeyComboInternal(
             modifier = HidReportBuilder.MODIFIER_LEFT_ALT.toInt(),
             key = HidReportBuilder.KeyboardUsage.KEY_X
         )
         actionQueue.enqueue(BleAction.Delay(50))  // 等待 Windows 轉換
 
-        Log.d(TAG, "✅ Alt+X Unicode 發送完成：'$char'")
-        ConnectionLogger.log("✅ Alt+X 發送完成", ConnectionLogger.LogLevel.INFO)
+        Log.d(TAG, "✅ Alt+X Unicode 傳送完成：'$char'")
+        ConnectionLogger.log("✅ Alt+X 傳送完成", ConnectionLogger.LogLevel.INFO)
     }
 
     /**
-     * 使用 Alt+X Unicode 模式發送文字
+     * 使用 Alt+X Unicode 模式傳送文字
      *
      * 智慧判斷：
-     * - ASCII 字元（0-127）：直接發送 HID 報告（快速）
+     * - ASCII 字元（0-127）：直接傳送 HID 報告（快速）
      * - 非 ASCII 字元：使用 Alt+X Unicode 模式
      *
-     * @param text 要發送的文字（支援中英文混合）
+     * @param text 要傳送的文字（支援中英文混合）
      */
     suspend fun sendTextWithAltX(text: String) {
         if (!isConnected()) {
-            Log.w(TAG, "未連線，無法發送文字")
+            Log.w(TAG, "未連線，無法傳送文字")
             return
         }
 
-        Log.d(TAG, "📤 開始發送文字（Alt+X 模式）：$text")
-        ConnectionLogger.log("📤 發送文字（Alt+X）：$text", ConnectionLogger.LogLevel.INFO)
+        Log.d(TAG, "📤 開始傳送文字（Alt+X 模式）：$text")
+        ConnectionLogger.log("📤 傳送文字（Alt+X）：$text", ConnectionLogger.LogLevel.INFO)
 
         var charCount = 0
 
@@ -1304,7 +1304,7 @@ class BleManager(private val context: Context) {
                     actionQueue.enqueue(BleAction.Delay(12))
                 }
 
-                // ASCII 字元（0-127）：直接發送 HID 報告
+                // ASCII 字元（0-127）：直接傳送 HID 報告
                 char.code <= 127 -> {
                     sendAsciiCharDirect(char)
                 }
@@ -1317,23 +1317,23 @@ class BleManager(private val context: Context) {
             }
         }
 
-        Log.d(TAG, "✅ 文字發送完成：$text（Alt+X 字元數：$charCount）")
-        ConnectionLogger.log("✅ 文字發送完成（Alt+X 字元：$charCount）", ConnectionLogger.LogLevel.INFO)
+        Log.d(TAG, "✅ 文字傳送完成：$text（Alt+X 字元數：$charCount）")
+        ConnectionLogger.log("✅ 文字傳送完成（Alt+X 字元：$charCount）", ConnectionLogger.LogLevel.INFO)
     }
 
     /**
-     * 使用 Big5 Alt 碼模式發送字元（混合模式）
+     * 使用 Big5 Alt 碼模式傳送字元（混合模式）
      *
      * 混合模式策略：
-     * - ASCII 字元（英文、數字、標點符號）→ 直接發送 HID 報告（快速）
+     * - ASCII 字元（英文、數字、標點符號）→ 直接傳送 HID 報告（快速）
      * - 中文字元 → 使用 Big5 Alt 碼
      *
-     * @param char 要發送的字元
+     * @param char 要傳送的字元
      */
     suspend fun sendCharWithBig5Mode(char: Char) {
-        // ASCII 字元（0-127）直接發送 HID 報告
+        // ASCII 字元（0-127）直接傳送 HID 報告
         if (char.code <= 127) {
-            Log.d(TAG, "📤 發送 ASCII 字元：'$char' (HID 直接發送)")
+            Log.d(TAG, "📤 傳送 ASCII 字元：'$char' (HID 直接傳送)")
             sendAsciiCharDirect(char)
             return
         }
@@ -1346,23 +1346,23 @@ class BleManager(private val context: Context) {
             return
         }
 
-        Log.d(TAG, "📤 發送 Big5 Alt 碼：'$char' → $big5Code (0x${big5Code.toString(16).uppercase()})")
+        Log.d(TAG, "📤 傳送 Big5 Alt 碼：'$char' → $big5Code (0x${big5Code.toString(16).uppercase()})")
         sendAltCode(big5Code)
     }
 
     /**
-     * 使用 Big5 Alt 碼模式發送字串（混合模式）
+     * 使用 Big5 Alt 碼模式傳送字串（混合模式）
      *
-     * @param text 要發送的字串
+     * @param text 要傳送的字串
      */
     suspend fun sendTextWithBig5AltCode(text: String) {
         if (!isConnected()) {
-            Log.w(TAG, "未連線，無法發送文字")
+            Log.w(TAG, "未連線，無法傳送文字")
             return
         }
 
-        Log.d(TAG, "📤 開始發送 Big5 模式文字：\"$text\" (${text.length} 字元)")
-        ConnectionLogger.log("📤 發送文字（Big5 模式）：$text", ConnectionLogger.LogLevel.INFO)
+        Log.d(TAG, "📤 開始傳送 Big5 模式文字：\"$text\" (${text.length} 字元)")
+        ConnectionLogger.log("📤 傳送文字（Big5 模式）：$text", ConnectionLogger.LogLevel.INFO)
 
         val startTime = System.currentTimeMillis()
         var asciiCount = 0
@@ -1382,7 +1382,7 @@ class BleManager(private val context: Context) {
                     actionQueue.enqueue(BleAction.Delay(12))
                 }
 
-                // ASCII 字元（0-127）：直接發送 HID 報告
+                // ASCII 字元（0-127）：直接傳送 HID 報告
                 char.code <= 127 -> {
                     sendAsciiCharDirect(char)
                     asciiCount++
@@ -1402,20 +1402,20 @@ class BleManager(private val context: Context) {
         }
 
         val duration = System.currentTimeMillis() - startTime
-        Log.d(TAG, "✅ Big5 模式文字發送完成，耗時 ${duration}ms（ASCII: $asciiCount 字，Big5: $big5Count 字）")
+        Log.d(TAG, "✅ Big5 模式文字傳送完成，耗時 ${duration}ms（ASCII: $asciiCount 字，Big5: $big5Count 字）")
         ConnectionLogger.log(
-            "✅ 文字發送完成（ASCII: $asciiCount, Big5: $big5Count，耗時 ${duration}ms）",
+            "✅ 文字傳送完成（ASCII: $asciiCount, Big5: $big5Count，耗時 ${duration}ms）",
             ConnectionLogger.LogLevel.INFO
         )
     }
 
 
     /**
-     * 發送單個 ASCII 按鍵（用於輸入 Unicode 十六進制）
+     * 傳送單個 ASCII 按鍵（用於輸入 Unicode 十六進制）
      *
      * 僅支援：0-9, A-F, 空白
      *
-     * @param char 要發送的字元
+     * @param char 要傳送的字元
      */
     private suspend fun sendAsciiKeyPress(char: Char) {
         val usage = when (char) {
@@ -1448,7 +1448,7 @@ class BleManager(private val context: Context) {
             }
         }
 
-        // 發送按鍵（按下 + 釋放）
+        // 傳送按鍵（按下 + 釋放）
         writeKeyboardReport(
             HidReportBuilder.buildKeyboardReport(0, usage)
         )
@@ -1461,9 +1461,9 @@ class BleManager(private val context: Context) {
     }
 
     /**
-     * 發送組合鍵（Modifier + Key）
+     * 傳送組合鍵（Modifier + Key）
      *
-     * 用於發送 Alt+X
+     * 用於傳送 Alt+X
      *
      * @param modifier 修飾鍵（如 MODIFIER_LEFT_ALT）
      * @param key 主鍵（如 KEY_X）
@@ -1489,7 +1489,7 @@ class BleManager(private val context: Context) {
     }
 
     /**
-     * 發送 ASCII 字元（使用標準 HID 報告）
+     * 傳送 ASCII 字元（使用標準 HID 報告）
      *
      * 支援：a-z, A-Z, 0-9, 基本標點符號
      *
@@ -1529,7 +1529,7 @@ class BleManager(private val context: Context) {
             }
         }
 
-        // 發送按鍵
+        // 傳送按鍵
         writeKeyboardReport(
             HidReportBuilder.buildKeyboardReport(modifier, usage)
         )
@@ -1542,14 +1542,14 @@ class BleManager(private val context: Context) {
     }
 
     /**
-     * 發送 Unicode 字元（HID Unicode 模式，僅 ESP32-S3）
+     * 傳送 Unicode 字元（HID Unicode 模式，僅 ESP32-S3）
      *
-     * 直接透過 CH5 characteristic 發送 Unicode code point 到 ESP32-S3，
+     * 直接透過 CH5 characteristic 傳送 Unicode code point 到 ESP32-S3，
      * ESP32-S3 韌體會透過 USB HID Unicode Report 傳送到 PC，Windows 自動顯示字元。
      *
      * 技術原理：
-     * 1. Android APP 將 Unicode code point（32-bit）發送到 CH5
-     * 2. ESP32-S3 接收並透過 USB HID Usage Page 0x10 (Unicode) 發送到 PC
+     * 1. Android APP 將 Unicode code point（32-bit）傳送到 CH5
+     * 2. ESP32-S3 接收並透過 USB HID Usage Page 0x10 (Unicode) 傳送到 PC
      * 3. Windows 原生支援 HID Unicode，無需驅動程式
      * 4. 速度快 6.6 倍（vs Big5 Alt 碼）
      *
@@ -1567,7 +1567,7 @@ class BleManager(private val context: Context) {
      */
     suspend fun sendUnicodeChar(char: Char) {
         if (!isConnected()) {
-            Log.w(TAG, "未連線，無法發送 Unicode 字元")
+            Log.w(TAG, "未連線，無法傳送 Unicode 字元")
             return
         }
 
@@ -1593,9 +1593,9 @@ class BleManager(private val context: Context) {
         }
 
         val codepoint = char.code
-        Log.d(TAG, "📤 發送 Unicode 字元：'$char' (U+${codepoint.toString(16).uppercase()})")
+        Log.d(TAG, "📤 傳送 Unicode 字元：'$char' (U+${codepoint.toString(16).uppercase()})")
         ConnectionLogger.log(
-            "📤 發送 HID Unicode：'$char' (U+${codepoint.toString(16).uppercase()})",
+            "📤 傳送 HID Unicode：'$char' (U+${codepoint.toString(16).uppercase()})",
             ConnectionLogger.LogLevel.INFO
         )
 
@@ -1606,18 +1606,18 @@ class BleManager(private val context: Context) {
         data[2] = ((codepoint shr 16) and 0xFF).toByte()
         data[3] = ((codepoint shr 24) and 0xFF).toByte()
 
-        // 發送到 CH5
+        // 傳送到 CH5
         actionQueue.enqueue(BleAction.WriteCharacteristic(data, ch5))
         actionQueue.enqueue(BleAction.Delay(20))  // HID Unicode 延遲（比 Alt 碼快很多）
 
-        Log.d(TAG, "✅ HID Unicode 發送完成：'$char'")
-        ConnectionLogger.log("✅ HID Unicode 發送完成", ConnectionLogger.LogLevel.DEBUG)
+        Log.d(TAG, "✅ HID Unicode 傳送完成：'$char'")
+        ConnectionLogger.log("✅ HID Unicode 傳送完成", ConnectionLogger.LogLevel.DEBUG)
     }
 
     /**
-     * 使用 CustomIn Direct 模式發送文字
+     * 使用 CustomIn Direct 模式傳送文字
      *
-     * 直接發送 UTF-8 編碼的文字到 PC，無需使用 Alt 碼。
+     * 直接傳送 UTF-8 編碼的文字到 PC，無需使用 Alt 碼。
      *
      * 格式參考：原廠 ReportCustom.java:23-41
      * - Type: 0x20 (BLEDATA_UNICODE_TEXT)
@@ -1633,11 +1633,11 @@ class BleManager(private val context: Context) {
      * - ~20ms/報告 (比 Alt 碼快約 12 倍)
      * - 支援所有 Unicode 字元（包括 Big5 範圍外的字元）
      *
-     * @param text 要發送的文字（支援所有 Unicode 字元）
-     * @throws Exception 如果發送失敗（例如：不支援 CustomIn 報告）
+     * @param text 要傳送的文字（支援所有 Unicode 字元）
+     * @throws Exception 如果傳送失敗（例如：不支援 CustomIn 報告）
      */
     /**
-     * 使用混合模式發送文字（智慧選擇 HID 或 CustomIn）
+     * 使用混合模式傳送文字（智慧選擇 HID 或 CustomIn）
      *
      * 智慧混合策略：
      * - ASCII 字元（英文、數字、符號）：使用 HID 鍵盤報告（快速，~10ms/字元）
@@ -1649,12 +1649,12 @@ class BleManager(private val context: Context) {
      * - 中文支援完整（CustomIn UTF-8，~20ms/報告）
      * - 不需要 Big5 轉換，支援所有 Unicode 字元
      *
-     * @param text 要發送的文字（支援所有 Unicode 字元）
-     * @throws Exception 如果發送失敗（例如：不支援 CustomIn 報告）
+     * @param text 要傳送的文字（支援所有 Unicode 字元）
+     * @throws Exception 如果傳送失敗（例如：不支援 CustomIn 報告）
      */
     suspend fun sendTextDirect(text: String) {
         if (!isConnected()) {
-            Log.w(TAG, "未連線，無法發送文字")
+            Log.w(TAG, "未連線，無法傳送文字")
             throw Exception("未連線")
         }
 
@@ -1665,9 +1665,9 @@ class BleManager(private val context: Context) {
             throw Exception("CH2 characteristic 不存在，接收器可能不支援 CustomIn 報告")
         }
 
-        Log.d(TAG, "📤 開始混合模式發送：'$text' (${text.length} 字元)")
+        Log.d(TAG, "📤 開始混合模式傳送：'$text' (${text.length} 字元)")
         ConnectionLogger.log(
-            "📤 混合模式發送：共 ${text.length} 字元",
+            "📤 混合模式傳送：共 ${text.length} 字元",
             ConnectionLogger.LogLevel.INFO
         )
 
@@ -1699,7 +1699,7 @@ class BleManager(private val context: Context) {
                     asciiCount++
                 }
 
-                // 非 ASCII 字元：收集連續的非 ASCII 字元，用 CustomIn 報告發送
+                // 非 ASCII 字元：收集連續的非 ASCII 字元，用 CustomIn 報告傳送
                 else -> {
                     // 找出連續的非 ASCII 字元
                     val startIndex = i
@@ -1711,7 +1711,7 @@ class BleManager(private val context: Context) {
                     }
                     val nonAsciiText = text.substring(startIndex, i)
 
-                    // 使用 CustomIn 報告發送
+                    // 使用 CustomIn 報告傳送
                     sendTextViaCustomIn(nonAsciiText)
                     customInCount += nonAsciiText.length
 
@@ -1722,15 +1722,15 @@ class BleManager(private val context: Context) {
             i++
         }
 
-        Log.d(TAG, "✅ 混合模式發送完成：ASCII=$asciiCount 字元，CustomIn=$customInCount 字元")
+        Log.d(TAG, "✅ 混合模式傳送完成：ASCII=$asciiCount 字元，CustomIn=$customInCount 字元")
         ConnectionLogger.log(
-            "✅ 混合模式發送完成：ASCII=$asciiCount，CustomIn=$customInCount",
+            "✅ 混合模式傳送完成：ASCII=$asciiCount，CustomIn=$customInCount",
             ConnectionLogger.LogLevel.INFO
         )
     }
 
     /**
-     * 發送 ASCII 字元（使用 HID 鍵盤報告）
+     * 傳送 ASCII 字元（使用 HID 鍵盤報告）
      *
      * @param char ASCII 字元（0x20-0x7E）
      */
@@ -1812,9 +1812,9 @@ class BleManager(private val context: Context) {
     }
 
     /**
-     * 透過 CustomIn 報告發送文字（僅非 ASCII 字元）
+     * 透過 CustomIn 報告傳送文字（僅非 ASCII 字元）
      *
-     * @param text 要發送的文字（應該只包含非 ASCII 字元）
+     * @param text 要傳送的文字（應該只包含非 ASCII 字元）
      */
     private suspend fun sendTextViaCustomIn(text: String) {
         val ch2 = ch2Characteristic ?: return
@@ -1833,7 +1833,7 @@ class BleManager(private val context: Context) {
             // 建構 CustomIn 報告
             val report = CustomInReportBuilder.buildCustomInReport(utf8Bytes, offset, length)
 
-            // 發送到 CH2 characteristic
+            // 傳送到 CH2 characteristic
             actionQueue.enqueue(BleAction.WriteCharacteristic(report, ch2))
             actionQueue.enqueue(BleAction.Delay(20))  // 每個報告間隔 20ms
 
@@ -1844,7 +1844,7 @@ class BleManager(private val context: Context) {
     /**
      * CustomIn 報告建構器（EmulStick Direct 模式）
      *
-     * 用於直接發送 UTF-8 文字到 PC，無需使用 Alt 碼。
+     * 用於直接傳送 UTF-8 文字到 PC，無需使用 Alt 碼。
      * 需要接收器韌體版本 Ver ≥1 支援。
      *
      * 格式參考：原廠 ReportCustom.java:23-41
@@ -1926,16 +1926,16 @@ class BleManager(private val context: Context) {
      * 確保 NumLock 開啟（用於 Alt 碼輸入）
      *
      * Windows Alt 碼輸入必須使用數字鍵台，而數字鍵台需要 NumLock 開啟。
-     * 原廠實作（KbImeInputFragment.java）會在發送 Alt 碼前檢查並開啟 NumLock。
+     * 原廠實作（KbImeInputFragment.java）會在傳送 Alt 碼前檢查並開啟 NumLock。
      *
      * ⭐ 新實作：透過 BLE notification 即時追蹤真實的 NumLock 狀態
      * - 從 ledStatus.value 取得當前 NumLock 狀態（PC → EmulStick → BLE → Android）
-     * - 只在 NumLock 關閉時才發送切換按鍵
+     * - 只在 NumLock 關閉時才傳送切換按鍵
      * - 避免不必要的按鍵操作，提升效率
      *
      * 邏輯：
      * - 如果 NumLock 已開啟：不做任何操作 ✅
-     * - 如果 NumLock 關閉：發送一次 NumLock 按鍵 → 開啟 ✅
+     * - 如果 NumLock 關閉：傳送一次 NumLock 按鍵 → 開啟 ✅
      *
      * 參考：
      * - 原廠 KbImeInputFragment.java 第 1224-1245 行（檢查邏輯）
@@ -1961,9 +1961,9 @@ class BleManager(private val context: Context) {
             return
         }
 
-        // NumLock 關閉，發送切換按鍵
-        Log.d(TAG, "🔄 NumLock 關閉，發送切換按鍵")
-        ConnectionLogger.log("🔄 NumLock 關閉，發送切換按鍵", ConnectionLogger.LogLevel.INFO)
+        // NumLock 關閉，傳送切換按鍵
+        Log.d(TAG, "🔄 NumLock 關閉，傳送切換按鍵")
+        ConnectionLogger.log("🔄 NumLock 關閉，傳送切換按鍵", ConnectionLogger.LogLevel.INFO)
 
         // 按下 NumLock
         writeKeyboardReport(
@@ -1978,8 +1978,8 @@ class BleManager(private val context: Context) {
         writeKeyboardReport(HidReportBuilder.buildEmptyKeyboardReport())
         actionQueue.enqueue(BleAction.Delay(50))  // 等待 NumLock 生效
 
-        Log.d(TAG, "✅ 已發送 NumLock 切換指令")
-        ConnectionLogger.log("✅ 已發送 NumLock 切換指令", ConnectionLogger.LogLevel.INFO)
+        Log.d(TAG, "✅ 已傳送 NumLock 切換指令")
+        ConnectionLogger.log("✅ 已傳送 NumLock 切換指令", ConnectionLogger.LogLevel.INFO)
     }
 
     /**
@@ -2024,7 +2024,7 @@ class BleManager(private val context: Context) {
             return
         }
 
-        // ⚠️ 加強日誌：顯示實際發送的 HEX 資料
+        // ⚠️ 加強日誌：顯示實際傳送的 HEX 資料
         val hexData = data.joinToString(" ") { "%02X".format(it) }
         Log.d(TAG, "📤 準備加入佇列：鍵盤報告（CH1）：[$hexData]")
         ConnectionLogger.log("📤 鍵盤報告（CH1）：[$hexData]", ConnectionLogger.LogLevel.INFO)
@@ -2106,7 +2106,7 @@ class BleManager(private val context: Context) {
      * 取得裝置 System ID（用於模式切換指令）
      *
      * System ID 在連線時已讀取並儲存在 systemId 變數中。
-     * 這個方法用於其他控制器（例如 BleXInputController）取得 System ID 以發送模式切換指令。
+     * 這個方法用於其他控制器（例如 BleXInputController）取得 System ID 以傳送模式切換指令。
      *
      * @return System ID (8 bytes) 或 null（尚未連線或讀取失敗）
      */
@@ -2231,7 +2231,7 @@ class BleManager(private val context: Context) {
     /**
      * 寫入特徵值（通用方法，供外部控制器使用）
      *
-     * 這個方法提供給 XInput 等特殊模式控制器使用，用於直接發送 GATT 寫入操作。
+     * 這個方法提供給 XInput 等特殊模式控制器使用，用於直接傳送 GATT 寫入操作。
      * 與內部的 writeMouseReport/writeKeyboardReport 不同，這個方法需要調用者指定完整的 UUID。
      *
      * @param characteristicUuid 特徵值 UUID
@@ -2466,13 +2466,13 @@ class BleManager(private val context: Context) {
                 ConnectionLogger.LogLevel.INFO
             )
 
-            // 發送密文請求
+            // 傳送密文請求
             requestCipherText(gatt)
         }
     }
 
     /**
-     * 發送「取得密文」指令
+     * 傳送「取得密文」指令
      */
     private fun requestCipherText(gatt: BluetoothGatt) {
         val sysId = systemId ?: return
@@ -2492,9 +2492,9 @@ class BleManager(private val context: Context) {
             sysId[7]
         )
 
-        Log.d(TAG, "發送密文請求：[0x${command[0].toString(16)}, 0x${command[1].toString(16)}, 0x${command[2].toString(16)}]")
+        Log.d(TAG, "傳送密文請求：[0x${command[0].toString(16)}, 0x${command[1].toString(16)}, 0x${command[2].toString(16)}]")
         ConnectionLogger.log(
-            "📤 發送密文請求：[0x91, 0x${sysId[6].toString(16)}, 0x${sysId[7].toString(16)}]",
+            "📤 傳送密文請求：[0x91, 0x${sysId[6].toString(16)}, 0x${sysId[7].toString(16)}]",
             ConnectionLogger.LogLevel.INFO
         )
 
@@ -2583,8 +2583,8 @@ class BleManager(private val context: Context) {
 
         val command = byteArrayOf(GattConstants.CMD_GET_EMULATE, sysId[6], sysId[7])
 
-        Log.d(TAG, "📤 發送查詢裝置模式指令：[0xA1, 0x${sysId[6].toString(16)}, 0x${sysId[7].toString(16)}]")
-        ConnectionLogger.log("📤 發送查詢裝置模式指令", ConnectionLogger.LogLevel.INFO)
+        Log.d(TAG, "📤 傳送查詢裝置模式指令：[0xA1, 0x${sysId[6].toString(16)}, 0x${sysId[7].toString(16)}]")
+        ConnectionLogger.log("📤 傳送查詢裝置模式指令", ConnectionLogger.LogLevel.INFO)
 
         val commandChar = bluetoothGatt
             ?.getService(GattConstants.SERVICE_EMULSTICK)

@@ -15,7 +15,7 @@ import kotlinx.coroutines.flow.asStateFlow
  * - 10 個按鈕（A/B/X/Y/LB/RB/BACK/START/L3/R3）
  *
  * 技術要點：
- * - 使用 CH1 characteristic (0xF801) 發送 HID Report
+ * - 使用 CH1 characteristic (0xF801) 傳送 HID Report
  * - 20-byte Xbox 360 HID Report 格式
  * - 透過 BLECMD_SET_EMULDEVICE (0x50) 切換模式
  * - VID/PID: Microsoft Xbox 360 Controller (0x045E/0x028E)
@@ -69,8 +69,8 @@ class BleXInputController(private val bleManager: BleManager) {
     /**
      * 切換到 Xbox 360 模式
      *
-     * 發送 BLECMD_SET_EMULDEVICE 指令，將 EmulStick 切換為 Xbox 360 控制器模式。
-     * 切換後，CH1 將用於發送 Xbox 360 HID Report，鍵盤功能將不可用。
+     * 傳送 BLECMD_SET_EMULDEVICE 指令，將 EmulStick 切換為 Xbox 360 控制器模式。
+     * 切換後，CH1 將用於傳送 Xbox 360 HID Report，鍵盤功能將不可用。
      *
      * @return Result<Unit> 成功或失敗
      */
@@ -94,13 +94,13 @@ class BleXInputController(private val bleManager: BleManager) {
                 ((GattConstants.XBOX360_PID shr 8) and 0xFF).toByte()
             )
 
-            Log.d(TAG, "發送 XInput 模式切換指令：[${command.joinToString(" ") { "%02X".format(it) }}]")
+            Log.d(TAG, "傳送 XInput 模式切換指令：[${command.joinToString(" ") { "%02X".format(it) }}]")
             com.unifiedremote.evo.network.ConnectionLogger.log(
                 "🎮 切換到 Xbox 360 模式",
                 com.unifiedremote.evo.network.ConnectionLogger.LogLevel.INFO
             )
 
-            // 發送指令到 COMMAND characteristic
+            // 傳送指令到 COMMAND characteristic
             val success = bleManager.writeCharacteristic(
                 GattConstants.CHAR_COMMAND,
                 command
@@ -198,7 +198,7 @@ class BleXInputController(private val bleManager: BleManager) {
                 }
             }
 
-            Log.d(TAG, "發送組合模式切換指令：[${command.joinToString(" ") { "%02X".format(it) }}]")
+            Log.d(TAG, "傳送組合模式切換指令：[${command.joinToString(" ") { "%02X".format(it) }}]")
             com.unifiedremote.evo.network.ConnectionLogger.log(
                 "⌨️ 切換回組合模式（PNP VID=$pnpVid, 指令長度=${command.size}）",
                 com.unifiedremote.evo.network.ConnectionLogger.LogLevel.INFO
@@ -394,9 +394,9 @@ class BleXInputController(private val bleManager: BleManager) {
     }
 
     /**
-     * 發送 HID Report
+     * 傳送 HID Report
      *
-     * 將當前的 Report 狀態發送到 CH1 characteristic。
+     * 將當前的 Report 狀態傳送到 CH1 characteristic。
      */
     private suspend fun sendReport() {
         val success = bleManager.writeCharacteristic(
@@ -405,7 +405,7 @@ class BleXInputController(private val bleManager: BleManager) {
         )
 
         if (!success) {
-            Log.w(TAG, "發送 Xbox 360 HID Report 失敗")
+            Log.w(TAG, "傳送 Xbox 360 HID Report 失敗")
         }
     }
 }

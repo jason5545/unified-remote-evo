@@ -12,7 +12,7 @@ import java.util.*
 import kotlin.coroutines.CoroutineContext
 
 /**
- * 連線管理器（針對 Tailscale 優化）
+ * 連線管理器（針對 Tailscale 最佳化）
  */
 class ConnectionManager(
     private val host: String,
@@ -45,7 +45,7 @@ class ConnectionManager(
     private var deviceId: String = UUID.randomUUID().toString()
 
     private var heartbeatJob: Job? = null
-    private var lastHeartbeatSentTime = 0L       // 上次發送心跳的時間
+    private var lastHeartbeatSentTime = 0L       // 上次傳送心跳的時間
     private var lastHeartbeatReceivedTime = 0L   // 上次收到心跳回應的時間
     private var receiveJob: Job? = null
 
@@ -61,7 +61,7 @@ class ConnectionManager(
 
     suspend fun connect() = withContext(Dispatchers.IO) {
         _connectionState.value = UnifiedConnectionState.Connecting("正在連線到 $host:$port...")
-        log("開始連接 $host:$port (timeout=${CONNECTION_TIMEOUT}ms)", ConnectionLogger.LogLevel.INFO)
+        log("開始連線 $host:$port (timeout=${CONNECTION_TIMEOUT}ms)", ConnectionLogger.LogLevel.INFO)
 
         try {
             log("建立 Socket...", ConnectionLogger.LogLevel.DEBUG)
@@ -70,7 +70,7 @@ class ConnectionManager(
                 soTimeout = SOCKET_TIMEOUT
             }
 
-            log("正在連接到 $host:$port...", ConnectionLogger.LogLevel.DEBUG)
+            log("正在連線到 $host:$port...", ConnectionLogger.LogLevel.DEBUG)
             val address = InetSocketAddress(host, port)
             log("解析位址完成: ${address.address?.hostAddress}", ConnectionLogger.LogLevel.DEBUG)
 
@@ -93,7 +93,7 @@ class ConnectionManager(
             startReceiving()
             startHeartbeat()
 
-            // 立即發送客戶端握手封包
+            // 立即傳送客戶端握手封包
             sendClientHandshake()
 
         } catch (e: java.net.UnknownHostException) {
@@ -146,7 +146,7 @@ class ConnectionManager(
 
     suspend fun send(packet: Packet) = withContext(Dispatchers.IO) {
         if (!isConnected) {
-            log("未連線，無法發送封包 (isConnected=$isConnected, socket=${socket != null}, output=${output != null})", ConnectionLogger.LogLevel.WARNING)
+            log("未連線，無法傳送封包 (isConnected=$isConnected, socket=${socket != null}, output=${output != null})", ConnectionLogger.LogLevel.WARNING)
             return@withContext
         }
 
@@ -164,10 +164,10 @@ class ConnectionManager(
             output?.flush()
 
             val actionInfo = packet.action?.let { "Action=$it" } ?: packet.run?.name ?: "keepalive"
-            log("發送封包: $actionInfo (${data.size} bytes)", ConnectionLogger.LogLevel.DEBUG)
+            log("傳送封包: $actionInfo (${data.size} bytes)", ConnectionLogger.LogLevel.DEBUG)
 
         } catch (e: Exception) {
-            log("發送封包失敗: ${e.message}", ConnectionLogger.LogLevel.ERROR)
+            log("傳送封包失敗: ${e.message}", ConnectionLogger.LogLevel.ERROR)
             disconnect()
             scheduleReconnect()
         }
@@ -247,12 +247,12 @@ class ConnectionManager(
                     break
                 }
 
-                // 發送心跳封包
+                // 傳送心跳封包
                 val heartbeat = Packet(keepAlive = true)
                 send(heartbeat)
                 lastHeartbeatSentTime = now
 
-                log("發送心跳封包（上次收到回應：${timeSinceLastReceived}ms 前）", ConnectionLogger.LogLevel.DEBUG)
+                log("傳送心跳封包（上次收到回應：${timeSinceLastReceived}ms 前）", ConnectionLogger.LogLevel.DEBUG)
             }
         }
     }
@@ -317,8 +317,8 @@ class ConnectionManager(
                 request = 1,
                 password = "",  // 無密碼
                 capabilities = if (packet.capabilities != null) {
-                    // 只有伺服器有 Capabilities 時才發送客戶端 Capabilities
-                    log("伺服器支援 Capabilities，發送客戶端能力", ConnectionLogger.LogLevel.DEBUG)
+                    // 只有伺服器有 Capabilities 時才傳送客戶端 Capabilities
+                    log("伺服器支援 Capabilities，傳送客戶端能力", ConnectionLogger.LogLevel.DEBUG)
                     com.unifiedremote.evo.data.Capabilities(
                         fast = false,  // ⚠️ Action=1 時 fast 仍為 false
                         actions = true,
@@ -329,12 +329,12 @@ class ConnectionManager(
                         // ⚠️ 不設定 clientNonce（原版 APP 從未設定）
                     )
                 } else {
-                    log("伺服器不支援 Capabilities，不發送", ConnectionLogger.LogLevel.DEBUG)
+                    log("伺服器不支援 Capabilities，不傳送", ConnectionLogger.LogLevel.DEBUG)
                     null
                 }
             )
             send(authPacket)
-            log("已發送認證封包 (Action=1, Capabilities=${authPacket.capabilities != null})", ConnectionLogger.LogLevel.INFO)
+            log("已傳送認證封包 (Action=1, Capabilities=${authPacket.capabilities != null})", ConnectionLogger.LogLevel.INFO)
         }
     }
 
@@ -343,7 +343,7 @@ class ConnectionManager(
 
         // 檢查伺服器是否支援 Fast 能力
         if (serverCapabilities?.fast != null) {
-            log("伺服器支援 Fast 能力，發送 Capabilities 協商 (Action=11)", ConnectionLogger.LogLevel.INFO)
+            log("伺服器支援 Fast 能力，傳送 Capabilities 協商 (Action=11)", ConnectionLogger.LogLevel.INFO)
 
             val handshakePacket = Packet(
                 action = 11,
@@ -354,7 +354,7 @@ class ConnectionManager(
                 )
             )
             send(handshakePacket)
-            log("已發送 Capabilities 協商封包 (Fast=true)", ConnectionLogger.LogLevel.INFO)
+            log("已傳送 Capabilities 協商封包 (Fast=true)", ConnectionLogger.LogLevel.INFO)
         } else {
             log("伺服器不支援 Fast 能力，跳過 Action=11", ConnectionLogger.LogLevel.INFO)
         }
@@ -376,11 +376,11 @@ class ConnectionManager(
             session = serverSession
         )
         send(loadPacket)
-        log("已發送載入 Remote 封包 (Action=3, Request=3, ID=$remoteId)", ConnectionLogger.LogLevel.INFO)
+        log("已傳送載入 Remote 封包 (Action=3, Request=3, ID=$remoteId)", ConnectionLogger.LogLevel.INFO)
     }
 
     private suspend fun sendClientHandshake() {
-        log("發送客戶端握手封包", ConnectionLogger.LogLevel.INFO)
+        log("傳送客戶端握手封包", ConnectionLogger.LogLevel.INFO)
 
         val clientNonce = UUID.randomUUID().toString()
 
@@ -391,11 +391,11 @@ class ConnectionManager(
             platform = "android",
             version = 10,
             password = clientNonce
-            // ⚠️ Action=0 時不發送 Capabilities！
+            // ⚠️ Action=0 時不傳送 Capabilities！
         )
 
         send(handshake)
-        log("客戶端握手封包已發送 (Action=0, Request=0, Version=10, 無 Capabilities)", ConnectionLogger.LogLevel.INFO)
+        log("客戶端握手封包已傳送 (Action=0, Request=0, Version=10, 無 Capabilities)", ConnectionLogger.LogLevel.INFO)
     }
 
     private fun log(message: String, level: ConnectionLogger.LogLevel) {

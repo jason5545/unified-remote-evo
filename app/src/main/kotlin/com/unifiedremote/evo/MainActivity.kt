@@ -375,11 +375,11 @@ class MainActivity : ComponentActivity() {
                     return@launch
                 }
 
-                ConnectionLogger.log("🔄 正在透過 TCP 連接到 $host:$port...", ConnectionLogger.LogLevel.INFO)
+                ConnectionLogger.log("🔄 正在透過 TCP 連線到 $host:$port...", ConnectionLogger.LogLevel.INFO)
 
                 // 設定連線回呼
                 service.onConnected = {
-                    ConnectionLogger.log("✅ 已連接到伺服器", ConnectionLogger.LogLevel.INFO)
+                    ConnectionLogger.log("✅ 已連線到伺服器", ConnectionLogger.LogLevel.INFO)
                     // 儲存裝置至歷史
                     val device = SavedDevice.createTcp(host, port)
                     deviceHistoryManager.saveDevice(device)
@@ -403,7 +403,7 @@ class MainActivity : ComponentActivity() {
                     ConnectionLogger.log("❌ 無法取得連線管理器", ConnectionLogger.LogLevel.ERROR)
                 }
             } catch (e: Exception) {
-                ConnectionLogger.log("❌ TCP 連接失敗: ${e.message}", ConnectionLogger.LogLevel.ERROR)
+                ConnectionLogger.log("❌ TCP 連線失敗: ${e.message}", ConnectionLogger.LogLevel.ERROR)
             }
         }
     }
@@ -424,11 +424,11 @@ class MainActivity : ComponentActivity() {
                     return@launch
                 }
 
-                ConnectionLogger.log("🔄 正在透過藍牙連接到 ${device.name} (${device.address})...", ConnectionLogger.LogLevel.INFO)
+                ConnectionLogger.log("🔄 正在透過藍牙連線到 ${device.name} (${device.address})...", ConnectionLogger.LogLevel.INFO)
 
                 // 設定連線回呼
                 service.onConnected = {
-                    ConnectionLogger.log("✅ 已連接到伺服器", ConnectionLogger.LogLevel.INFO)
+                    ConnectionLogger.log("✅ 已連線到伺服器", ConnectionLogger.LogLevel.INFO)
                     // 儲存裝置至歷史
                     val savedDevice = SavedDevice.createBluetooth(
                         address = device.address,
@@ -455,7 +455,7 @@ class MainActivity : ComponentActivity() {
                     ConnectionLogger.log("❌ 無法取得連線管理器", ConnectionLogger.LogLevel.ERROR)
                 }
             } catch (e: Exception) {
-                ConnectionLogger.log("❌ 藍牙連接失敗: ${e.message}", ConnectionLogger.LogLevel.ERROR)
+                ConnectionLogger.log("❌ 藍牙連線失敗: ${e.message}", ConnectionLogger.LogLevel.ERROR)
             }
         }
     }
@@ -471,7 +471,7 @@ class MainActivity : ComponentActivity() {
     ) {
         lifecycleScope.launch {
             try {
-                ConnectionLogger.log("🔄 正在連接到 $address...", ConnectionLogger.LogLevel.INFO)
+                ConnectionLogger.log("🔄 正在連線到 $address...", ConnectionLogger.LogLevel.INFO)
 
                 // ✅ 使用 ViewModel 的連線方法
                 bleViewModel.connectToDevice(address)
@@ -484,7 +484,7 @@ class MainActivity : ComponentActivity() {
 
                 when (val connState = finalState.connectionState) {
                     is com.unifiedremote.evo.network.ble.BleConnectionState.Connected -> {
-                        ConnectionLogger.log("✅ 已連接到 ${connState.deviceName} (${connState.deviceAddress})", ConnectionLogger.LogLevel.INFO)
+                        ConnectionLogger.log("✅ 已連線到 ${connState.deviceName} (${connState.deviceAddress})", ConnectionLogger.LogLevel.INFO)
 
                         // 儲存裝置至歷史
                         val savedDevice = SavedDevice.createBleEmulstick(
@@ -507,14 +507,14 @@ class MainActivity : ComponentActivity() {
                         onSuccess(mouseAdapter, keyboardAdapter)
                     }
                     is com.unifiedremote.evo.network.ble.BleConnectionState.Error -> {
-                        ConnectionLogger.log("❌ BLE 連接錯誤: ${connState.message}", ConnectionLogger.LogLevel.ERROR)
+                        ConnectionLogger.log("❌ BLE 連線錯誤: ${connState.message}", ConnectionLogger.LogLevel.ERROR)
                     }
                     else -> {
-                        ConnectionLogger.log("❌ BLE 連接失敗：未知狀態", ConnectionLogger.LogLevel.ERROR)
+                        ConnectionLogger.log("❌ BLE 連線失敗：未知狀態", ConnectionLogger.LogLevel.ERROR)
                     }
                 }
             } catch (e: Exception) {
-                ConnectionLogger.log("❌ BLE 連接失敗: ${e.message}", ConnectionLogger.LogLevel.ERROR)
+                ConnectionLogger.log("❌ BLE 連線失敗: ${e.message}", ConnectionLogger.LogLevel.ERROR)
             }
         }
     }
@@ -545,7 +545,7 @@ class MainActivity : ComponentActivity() {
                 }
             }
             com.unifiedremote.evo.network.ConnectionType.BLE_EMULSTICK -> {
-                // ✅ 已儲存的 BLE 裝置，直接用 MAC 地址連接
+                // ✅ 已儲存的 BLE 裝置，直接用 MAC 地址連線
                 val address = device.bluetoothAddress ?: return
                 connectBleEmulstickDeviceByAddress(address, onSuccess)
             }

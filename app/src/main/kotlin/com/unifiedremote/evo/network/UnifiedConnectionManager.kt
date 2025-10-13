@@ -75,18 +75,18 @@ class UnifiedConnectionManager(
     }
 
     /**
-     * 發送封包
+     * 傳送封包
      */
     suspend fun send(packet: Packet) {
         when (val conn = currentConnection) {
             is ConnectionManager -> conn.send(packet)
             is BluetoothConnectionManager -> conn.send(packet)
-            else -> onLog?.invoke("未連線，無法發送封包", ConnectionLogger.LogLevel.WARNING)
+            else -> onLog?.invoke("未連線，無法傳送封包", ConnectionLogger.LogLevel.WARNING)
         }
     }
 
     /**
-     * 發送 Action（便利方法）
+     * 傳送 Action（便利方法）
      */
     suspend fun sendAction(action: Action) {
         val packet = Packet(run = action)

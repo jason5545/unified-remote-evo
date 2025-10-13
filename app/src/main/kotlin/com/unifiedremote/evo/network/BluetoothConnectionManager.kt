@@ -165,7 +165,7 @@ class BluetoothConnectionManager(
             startReceiving()
             startHeartbeat()
 
-            // 立即發送客戶端握手封包
+            // 立即傳送客戶端握手封包
             sendClientHandshake()
 
         } catch (e: TimeoutCancellationException) {
@@ -231,7 +231,7 @@ class BluetoothConnectionManager(
 
     suspend fun send(packet: Packet) = withContext(Dispatchers.IO) {
         if (!isConnected) {
-            log("未連線，無法發送封包", ConnectionLogger.LogLevel.WARNING)
+            log("未連線，無法傳送封包", ConnectionLogger.LogLevel.WARNING)
             return@withContext
         }
 
@@ -249,10 +249,10 @@ class BluetoothConnectionManager(
             output?.flush()
 
             val actionInfo = packet.action?.let { "Action=$it" } ?: packet.run?.name ?: "keepalive"
-            log("發送封包: $actionInfo (${data.size} bytes)", ConnectionLogger.LogLevel.DEBUG)
+            log("傳送封包: $actionInfo (${data.size} bytes)", ConnectionLogger.LogLevel.DEBUG)
 
         } catch (e: Exception) {
-            log("發送封包失敗: ${e.message}", ConnectionLogger.LogLevel.ERROR)
+            log("傳送封包失敗: ${e.message}", ConnectionLogger.LogLevel.ERROR)
             disconnect()
             scheduleReconnect()
         }
@@ -397,7 +397,7 @@ class BluetoothConnectionManager(
                 } else null
             )
             send(authPacket)
-            log("已發送認證封包", ConnectionLogger.LogLevel.INFO)
+            log("已傳送認證封包", ConnectionLogger.LogLevel.INFO)
         }
     }
 
@@ -405,7 +405,7 @@ class BluetoothConnectionManager(
         log("處理認證回應: Security=${packet.security}", ConnectionLogger.LogLevel.INFO)
 
         if (serverCapabilities?.fast != null) {
-            log("伺服器支援 Fast 能力，發送 Capabilities 協商 (Action=11)", ConnectionLogger.LogLevel.INFO)
+            log("伺服器支援 Fast 能力，傳送 Capabilities 協商 (Action=11)", ConnectionLogger.LogLevel.INFO)
 
             val handshakePacket = Packet(
                 action = 11,
@@ -438,7 +438,7 @@ class BluetoothConnectionManager(
     }
 
     private suspend fun sendClientHandshake() {
-        log("發送客戶端握手封包", ConnectionLogger.LogLevel.INFO)
+        log("傳送客戶端握手封包", ConnectionLogger.LogLevel.INFO)
 
         val clientNonce = UUID.randomUUID().toString()
 
@@ -452,7 +452,7 @@ class BluetoothConnectionManager(
         )
 
         send(handshake)
-        log("客戶端握手封包已發送", ConnectionLogger.LogLevel.INFO)
+        log("客戶端握手封包已傳送", ConnectionLogger.LogLevel.INFO)
     }
 
     private fun log(message: String, level: ConnectionLogger.LogLevel) {

@@ -76,10 +76,10 @@ object AsciiToHidMapper {
     }
 
     /**
-     * 檢查字元是否可以用 HID 直接發送
+     * 檢查字元是否可以用 HID 直接傳送
      *
      * @param char 要檢查的字元
-     * @return true 如果可以用 HID 直接發送
+     * @return true 如果可以用 HID 直接傳送
      */
     fun isHidSupported(char: Char): Boolean {
         return mapAsciiToHid(char) != null
