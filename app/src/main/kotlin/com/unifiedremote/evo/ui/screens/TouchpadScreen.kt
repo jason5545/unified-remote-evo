@@ -11,6 +11,8 @@ import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.foundation.verticalScroll
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Menu
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -136,7 +138,7 @@ fun TouchpadScreen(
             bleState = bleState,
             modifier = Modifier
                 .align(Alignment.TopCenter)
-                .padding(top = 64.dp)  // 避免擋到頂部按鈕
+                .padding(top = 8.dp)  // 直接在頂部（不需要避開功能列）
         )
     }
 
@@ -180,6 +182,7 @@ fun TouchpadScreen(
 
 // ============ 組合模式 UI ============
 
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 private fun TouchpadModeUI(
     mouseController: MouseController,
@@ -202,6 +205,8 @@ private fun TouchpadModeUI(
     onShowInputPanel: (Boolean) -> Unit,
     onShowDeviceSwitcher: (Boolean) -> Unit = {}
 ) {
+    var showMenuBottomSheet by remember { mutableStateOf(false) }
+
     Box(modifier = Modifier.fillMaxSize()) {
         // 全螢幕觸控板
         TouchpadArea(
@@ -248,22 +253,6 @@ private fun TouchpadModeUI(
                 .padding(6.dp)
         )
 
-        // 頂部功能列
-        TopControlBar(
-            onShortcuts = { onShowShortcutsDialog(true) },
-            onText = { onShowInputPanel(true) },
-            onSettings = onShowSettings,
-            onDebug = onShowDebug,
-            onDisconnect = onDisconnect,
-            onSwitchDevice = { onShowDeviceSwitcher(true) },
-            isBleMode = bleManager != null,
-            isXInputMode = isXInputMode,
-            onXInputToggle = onXInputToggle,
-            modifier = Modifier
-                .align(Alignment.TopCenter)
-                .fillMaxWidth()
-        )
-
         // 硬體指示器（僅 BLE 模式顯示）
         if (bleManager != null) {
             val hardwareType = bleManager.getHardwareType()
@@ -272,7 +261,57 @@ private fun TouchpadModeUI(
                 modifier = Modifier
                     .align(Alignment.TopCenter)
                     .fillMaxWidth()
-                    .padding(top = 56.dp)  // 在頂部功能列下方
+                    .padding(top = 8.dp)  // 直接在頂部，不需要避開功能列
+            )
+        }
+
+        // 右下角浮動按鈕選單
+        FloatingActionButton(
+            onClick = { showMenuBottomSheet = true },
+            modifier = Modifier
+                .align(Alignment.BottomEnd)
+                .padding(end = 16.dp, bottom = 76.dp)  // 避開底部滑鼠按鈕
+        ) {
+            Icon(
+                imageVector = Icons.Default.Menu,
+                contentDescription = "選單"
+            )
+        }
+    }
+
+    // 功能選單 BottomSheet
+    if (showMenuBottomSheet) {
+        ModalBottomSheet(
+            onDismissRequest = { showMenuBottomSheet = false }
+        ) {
+            MenuBottomSheetContent(
+                onShortcuts = {
+                    showMenuBottomSheet = false
+                    onShowShortcutsDialog(true)
+                },
+                onText = {
+                    showMenuBottomSheet = false
+                    onShowInputPanel(true)
+                },
+                onSettings = {
+                    showMenuBottomSheet = false
+                    onShowSettings()
+                },
+                onDebug = {
+                    showMenuBottomSheet = false
+                    onShowDebug()
+                },
+                onDisconnect = {
+                    showMenuBottomSheet = false
+                    onDisconnect()
+                },
+                onSwitchDevice = {
+                    showMenuBottomSheet = false
+                    onShowDeviceSwitcher(true)
+                },
+                isBleMode = bleManager != null,
+                isXInputMode = isXInputMode,
+                onXInputToggle = onXInputToggle
             )
         }
     }
@@ -482,7 +521,207 @@ fun MouseButtons(
     }
 }
 
-// 頂部功能列
+// 功能選單底部面板內容
+@Composable
+fun MenuBottomSheetContent(
+    onShortcuts: () -> Unit,
+    onText: () -> Unit,
+    onSettings: () -> Unit,
+    onDebug: () -> Unit,
+    onDisconnect: () -> Unit,
+    onSwitchDevice: () -> Unit,
+    isBleMode: Boolean = false,
+    isXInputMode: Boolean = false,
+    onXInputToggle: ((Boolean) -> Unit)? = null
+) {
+    Column(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(16.dp)
+    ) {
+        Text(
+            text = "功能選單",
+            style = MaterialTheme.typography.titleLarge,
+            modifier = Modifier.padding(bottom = 16.dp)
+        )
+
+        // 切換裝置
+        Button(
+            onClick = onSwitchDevice,
+            modifier = Modifier
+                .fillMaxWidth()
+                .height(56.dp)
+        ) {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.Start,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Text("🔄", style = MaterialTheme.typography.titleLarge)
+                Spacer(modifier = Modifier.width(16.dp))
+                Text("切換裝置", style = MaterialTheme.typography.bodyLarge)
+            }
+        }
+
+        Spacer(modifier = Modifier.height(8.dp))
+
+        // 設定
+        Button(
+            onClick = onSettings,
+            modifier = Modifier
+                .fillMaxWidth()
+                .height(56.dp)
+        ) {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.Start,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Text("⚙️", style = MaterialTheme.typography.titleLarge)
+                Spacer(modifier = Modifier.width(16.dp))
+                Text("設定", style = MaterialTheme.typography.bodyLarge)
+            }
+        }
+
+        Spacer(modifier = Modifier.height(8.dp))
+
+        // 除錯
+        Button(
+            onClick = onDebug,
+            modifier = Modifier
+                .fillMaxWidth()
+                .height(56.dp)
+        ) {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.Start,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Text("📊", style = MaterialTheme.typography.titleLarge)
+                Spacer(modifier = Modifier.width(16.dp))
+                Text("除錯", style = MaterialTheme.typography.bodyLarge)
+            }
+        }
+
+        Spacer(modifier = Modifier.height(8.dp))
+
+        // 斷線
+        Button(
+            onClick = onDisconnect,
+            modifier = Modifier
+                .fillMaxWidth()
+                .height(56.dp),
+            colors = ButtonDefaults.buttonColors(
+                containerColor = MaterialTheme.colorScheme.error
+            )
+        ) {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.Start,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Text("❌", style = MaterialTheme.typography.titleLarge)
+                Spacer(modifier = Modifier.width(16.dp))
+                Text("斷線", style = MaterialTheme.typography.bodyLarge)
+            }
+        }
+
+        Spacer(modifier = Modifier.height(16.dp))
+
+        Divider()
+
+        Spacer(modifier = Modifier.height(16.dp))
+
+        // 快捷鍵
+        Button(
+            onClick = onShortcuts,
+            modifier = Modifier
+                .fillMaxWidth()
+                .height(56.dp)
+        ) {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.Start,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Text("⚡", style = MaterialTheme.typography.titleLarge)
+                Spacer(modifier = Modifier.width(16.dp))
+                Text("快捷鍵", style = MaterialTheme.typography.bodyLarge)
+            }
+        }
+
+        Spacer(modifier = Modifier.height(8.dp))
+
+        // 文字輸入
+        Button(
+            onClick = onText,
+            modifier = Modifier
+                .fillMaxWidth()
+                .height(56.dp)
+        ) {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.Start,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Text("📝", style = MaterialTheme.typography.titleLarge)
+                Spacer(modifier = Modifier.width(16.dp))
+                Text("文字輸入", style = MaterialTheme.typography.bodyLarge)
+            }
+        }
+
+        // 遊戲手把切換（僅 BLE 模式）
+        if (isBleMode && onXInputToggle != null) {
+            Spacer(modifier = Modifier.height(16.dp))
+
+            Divider()
+
+            Spacer(modifier = Modifier.height(16.dp))
+
+            // 遊戲手把模式切換（使用 Card 包裹，更明顯）
+            Card(
+                modifier = Modifier.fillMaxWidth(),
+                colors = CardDefaults.cardColors(
+                    containerColor = MaterialTheme.colorScheme.secondaryContainer
+                )
+            ) {
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(16.dp),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Text("🎮", style = MaterialTheme.typography.titleLarge)
+                        Spacer(modifier = Modifier.width(16.dp))
+                        Column {
+                            Text(
+                                text = "遊戲手把模式",
+                                style = MaterialTheme.typography.bodyLarge
+                            )
+                            Text(
+                                text = "切換至虛擬手把控制",
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                        }
+                    }
+                    Switch(
+                        checked = isXInputMode,
+                        onCheckedChange = onXInputToggle
+                    )
+                }
+            }
+        }
+
+        Spacer(modifier = Modifier.height(32.dp))
+    }
+}
+
+// 頂部功能列（已不使用，保留供參考）
 @Composable
 fun TopControlBar(
     onShortcuts: () -> Unit,
