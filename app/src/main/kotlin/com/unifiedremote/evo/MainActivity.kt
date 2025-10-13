@@ -107,8 +107,13 @@ class MainActivity : ComponentActivity() {
         setContent {
             var mouseController by remember { mutableStateOf<MouseController?>(null) }
             var keyboardController by remember { mutableStateOf<KeyboardController?>(null) }
-            var savedDevices by remember { mutableStateOf(deviceHistoryManager.getAllDevices()) }
+            var savedDevices by remember { mutableStateOf<List<SavedDevice>>(emptyList()) }
             var currentDeviceId by remember { mutableStateOf<String?>(null) }
+
+            // ✅ 延遲載入已儲存裝置，避免初始化競爭
+            LaunchedEffect(Unit) {
+                savedDevices = deviceHistoryManager.getAllDevices()
+            }
 
             // ✅ 使用 ViewModel 的統一狀態
             val bleUiState by bleViewModel.uiState.collectAsStateWithLifecycle()
