@@ -284,6 +284,11 @@ class MainActivity : ComponentActivity() {
 
         if (allGranted) {
             when (requestCode) {
+                405 -> {  // POST_NOTIFICATIONS 授予（Android 13+）
+                    ConnectionLogger.log("✅ 通知權限已授予", ConnectionLogger.LogLevel.INFO)
+                    // 繼續檢查藍牙權限
+                    checkBluetoothPermission()
+                }
                 403 -> {  // BLUETOOTH_CONNECT 授予
                     ConnectionLogger.log("✅ 藍牙權限已授予", ConnectionLogger.LogLevel.INFO)
                     // 原廠：授予後會啟動藍牙啟用對話框（如果藍牙未啟用）
@@ -300,6 +305,9 @@ class MainActivity : ComponentActivity() {
         } else {
             // 權限被拒絕
             when (requestCode) {
+                405 -> {
+                    ConnectionLogger.log("❌ 通知權限被拒絕（前景服務可能無法運作）", ConnectionLogger.LogLevel.ERROR)
+                }
                 403 -> {
                     ConnectionLogger.log("❌ 藍牙權限被拒絕", ConnectionLogger.LogLevel.ERROR)
                 }
@@ -315,6 +323,20 @@ class MainActivity : ComponentActivity() {
      */
     private fun checkBluetoothPermission() {
         ConnectionLogger.log("📋 檢查藍牙權限...", ConnectionLogger.LogLevel.DEBUG)
+
+        // Android 13+：先檢查通知權限（前景服務需要）
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+            val notificationGranted = ContextCompat.checkSelfPermission(
+                this,
+                Manifest.permission.POST_NOTIFICATIONS
+            ) == PackageManager.PERMISSION_GRANTED
+
+            if (!notificationGranted) {
+                ConnectionLogger.log("📋 請求通知權限（前景服務需要）", ConnectionLogger.LogLevel.INFO)
+                requestPermissions(arrayOf(Manifest.permission.POST_NOTIFICATIONS), 405)
+                return  // 等待權限授予後再繼續
+            }
+        }
 
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
             // Android 12+：需要 BLUETOOTH_CONNECT 和 BLUETOOTH_SCAN
