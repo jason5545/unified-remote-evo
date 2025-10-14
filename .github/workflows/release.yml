@@ -1,0 +1,208 @@
+name: Build and Release APK
+
+on:
+  push:
+    tags:
+      - 'v*'  # 當推送 v1.0.0 等 tag 時觸發
+  workflow_dispatch:  # 允許手動觸發
+
+jobs:
+  build:
+    name: Build Signed APK
+    runs-on: ubuntu-latest
+
+    steps:
+      # 1. 檢出程式碼
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      # 2. 設定 JDK 17
+      - name: Set up JDK 17
+        uses: actions/setup-java@v4
+        with:
+          java-version: '17'
+          distribution: 'temurin'
+
+      # 3. 賦予 Gradle 執行權限
+      - name: Grant execute permission for gradlew
+        run: chmod +x gradlew
+
+      # 4. 檢查並產生簽署金鑰（如果不存在）
+      - name: Setup Signing Key
+        run: |
+          if [ -z "${{ secrets.KEYSTORE_BASE64 }}" ]; then
+            echo "⚠️ 未找到 KEYSTORE_BASE64，自動產生新的簽署金鑰..."
+
+            # 產生隨機密碼（16 字元）
+            STORE_PASS=$(openssl rand -base64 16 | tr -d "=+/" | cut -c1-16)
+            KEY_PASS=$(openssl rand -base64 16 | tr -d "=+/" | cut -c1-16)
+            ALIAS="unified-remote-evo"
+
+            echo "產生的資訊（請複製到 GitHub Secrets）："
+            echo "=================================="
+            echo "KEY_ALIAS=$ALIAS"
+            echo "KEYSTORE_PASSWORD=$STORE_PASS"
+            echo "KEY_PASSWORD=$KEY_PASS"
+            echo "=================================="
+
+            # 產生 Keystore (使用 JKS 格式支援不同密碼)
+            keytool -genkey -v \
+              -keystore app/release.keystore \
+              -storetype JKS \
+              -alias "$ALIAS" \
+              -keyalg RSA \
+              -keysize 2048 \
+              -validity 10000 \
+              -storepass "$STORE_PASS" \
+              -keypass "$KEY_PASS" \
+              -dname "CN=Unified Remote Evo, OU=Development, O=Personal, L=Taipei, ST=Taiwan, C=TW"
+
+            # 轉換為 Base64
+            KEYSTORE_B64=$(base64 -w 0 app/release.keystore)
+
+            echo ""
+            echo "KEYSTORE_BASE64（請複製以下完整內容）："
+            echo "=================================="
+            echo "$KEYSTORE_B64"
+            echo "=================================="
+            echo ""
+            echo "⚠️ 請將以上 4 個值設定到 GitHub Secrets 中！"
+            echo "設定路徑：Settings → Secrets and variables → Actions → New repository secret"
+            echo ""
+            echo "設定完成後，請重新執行此 workflow。"
+
+            # 儲存到環境變數供後續步驟使用
+            echo "KEYSTORE_PASSWORD=$STORE_PASS" >> $GITHUB_ENV
+            echo "KEY_ALIAS=$ALIAS" >> $GITHUB_ENV
+            echo "KEY_PASSWORD=$KEY_PASS" >> $GITHUB_ENV
+          else
+            echo "✅ 找到現有的簽署金鑰，使用現有設定"
+            # 還原 Keystore（直接從 secrets 讀取，不經過環境變數）
+            echo "${{ secrets.KEYSTORE_BASE64 }}" | base64 -d > app/release.keystore
+          fi
+
+      # 5. 驗證 Keystore 有效性
+      - name: Verify Keystore
+        run: |
+          echo "🔍 驗證 Keystore 有效性..."
+
+          # 決定使用自動產生的還是 Secrets 的密碼
+          if [ -n "${{ env.KEYSTORE_PASSWORD }}" ]; then
+            # 使用自動產生的密碼
+            STORE_PASS="${{ env.KEYSTORE_PASSWORD }}"
+            ALIAS="${{ env.KEY_ALIAS }}"
+            KEY_PASS="${{ env.KEY_PASSWORD }}"
+          else
+            # 使用 Secrets 的密碼
+            STORE_PASS="${{ secrets.KEYSTORE_PASSWORD }}"
+            ALIAS="${{ secrets.KEY_ALIAS }}"
+            KEY_PASS="${{ secrets.KEY_PASSWORD }}"
+          fi
+
+          # 測試 KEYSTORE_PASSWORD（讀取 keystore）
+          if ! keytool -list -keystore app/release.keystore \
+               -storepass "$STORE_PASS" \
+               -alias "$ALIAS" > /dev/null 2>&1; then
+            echo "❌ Keystore 驗證失敗！(KEYSTORE_PASSWORD 或 KEY_ALIAS 錯誤)"
+            echo ""
+            echo "可能的原因："
+            echo "1. KEYSTORE_BASE64 複製不完整（最常見）"
+            echo "2. KEYSTORE_PASSWORD 不正確"
+            echo "3. KEY_ALIAS 不正確"
+            echo ""
+            echo "建議："
+            echo "- 刪除所有 Secrets (KEYSTORE_BASE64, KEYSTORE_PASSWORD, KEY_ALIAS, KEY_PASSWORD)"
+            echo "- 重新執行 workflow 讓系統自動產生"
+            echo "- 從日誌複製完整內容（包括結尾的 = 符號）"
+            exit 1
+          fi
+
+          echo "✅ Step 1: KEYSTORE_PASSWORD 驗證成功"
+
+          # 測試 KEY_PASSWORD（取得私鑰，這是簽署 APK 時會用到的）
+          echo "🔍 驗證 KEY_PASSWORD..."
+          if ! keytool -list -keystore app/release.keystore \
+               -storepass "$STORE_PASS" \
+               -alias "$ALIAS" \
+               -keypass "$KEY_PASS" > /dev/null 2>&1; then
+            echo "❌ KEY_PASSWORD 驗證失敗！"
+            echo ""
+            echo "KEYSTORE_PASSWORD 正確，但 KEY_PASSWORD 不正確。"
+            echo ""
+            echo "建議："
+            echo "1. 檢查 KEY_PASSWORD Secret 是否正確"
+            echo "2. 或刪除所有 4 個 Secrets 重新產生"
+            exit 1
+          fi
+
+          echo "✅ Step 2: KEY_PASSWORD 驗證成功"
+          echo "✅ Keystore 完整驗證通過！別名: $ALIAS"
+
+          # 顯示憑證資訊（可選）
+          keytool -list -keystore app/release.keystore \
+                  -storepass "$STORE_PASS" \
+                  -alias "$ALIAS" | grep -E "Creation date|建立日期" || true
+
+      # 6. 建立 keystore.properties
+      - name: Create keystore.properties
+        run: |
+          # 決定使用自動產生的還是 Secrets 的密碼
+          if [ -n "${{ env.KEYSTORE_PASSWORD }}" ]; then
+            # 使用自動產生的密碼
+            echo "storeFile=release.keystore" > keystore.properties
+            echo "storePassword=${{ env.KEYSTORE_PASSWORD }}" >> keystore.properties
+            echo "keyAlias=${{ env.KEY_ALIAS }}" >> keystore.properties
+            echo "keyPassword=${{ env.KEY_PASSWORD }}" >> keystore.properties
+          else
+            # 使用 Secrets 的密碼（直接存取，不經過環境變數）
+            echo "storeFile=release.keystore" > keystore.properties
+            echo "storePassword=${{ secrets.KEYSTORE_PASSWORD }}" >> keystore.properties
+            echo "keyAlias=${{ secrets.KEY_ALIAS }}" >> keystore.properties
+            echo "keyPassword=${{ secrets.KEY_PASSWORD }}" >> keystore.properties
+          fi
+
+      # 7. 編譯 Release APK
+      - name: Build Release APK
+        run: ./gradlew assembleRelease
+
+      # 8. 取得版本號（從 tag）
+      - name: Get version
+        id: version
+        run: |
+          if [ "${{ github.ref_type }}" = "tag" ]; then
+            echo "version=${{ github.ref_name }}" >> $GITHUB_OUTPUT
+          else
+            echo "version=dev-$(date +%Y%m%d-%H%M%S)" >> $GITHUB_OUTPUT
+          fi
+
+      # 9. 重新命名 APK
+      - name: Rename APK
+        run: |
+          mv app/build/outputs/apk/release/app-release.apk \
+             unified-remote-evo-${{ steps.version.outputs.version }}.apk
+
+      # 10. 上傳 APK 作為 Artifact
+      - name: Upload APK
+        uses: actions/upload-artifact@v4
+        with:
+          name: unified-remote-evo-${{ steps.version.outputs.version }}
+          path: unified-remote-evo-${{ steps.version.outputs.version }}.apk
+
+      # 11. 建立 GitHub Release（僅當推送 tag 時）
+      - name: Create Release
+        if: startsWith(github.ref, 'refs/tags/')
+        uses: softprops/action-gh-release@v1
+        with:
+          files: unified-remote-evo-${{ steps.version.outputs.version }}.apk
+          generate_release_notes: true
+          draft: false
+          prerelease: false
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      # 12. 清理簽署金鑰
+      - name: Cleanup
+        if: always()
+        run: |
+          rm -f app/release.keystore
+          rm -f keystore.properties
