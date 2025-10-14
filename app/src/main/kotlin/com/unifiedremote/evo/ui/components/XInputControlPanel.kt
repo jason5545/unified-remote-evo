@@ -5,6 +5,8 @@ import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.gestures.detectDragGestures
 import androidx.compose.foundation.layout.*
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Menu
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -44,6 +46,7 @@ fun XInputControlPanel(
 ) {
     val configuration = LocalConfiguration.current
     val isLandscape = configuration.orientation == Configuration.ORIENTATION_LANDSCAPE
+    var showMenu by remember { mutableStateOf(false) }
 
     Box(modifier = modifier.fillMaxSize()) {
         if (isLandscape) {
@@ -54,14 +57,69 @@ fun XInputControlPanel(
             PortraitLayout(xInputController = xInputController)
         }
 
-        // 返回按鈕（左上角）
-        TextButton(
+        // 浮動選單按鈕（右下角）
+        FloatingActionButton(
+            onClick = { showMenu = true },
+            modifier = Modifier
+                .align(Alignment.BottomEnd)
+                .padding(16.dp)
+        ) {
+            Icon(
+                imageVector = Icons.Default.Menu,
+                contentDescription = "選單"
+            )
+        }
+
+        // 選單 BottomSheet
+        if (showMenu) {
+            ModalBottomSheet(
+                onDismissRequest = { showMenu = false }
+            ) {
+                XInputMenuContent(
+                    onBack = {
+                        showMenu = false
+                        onBack()
+                    },
+                    onDismiss = { showMenu = false }
+                )
+            }
+        }
+    }
+}
+
+/**
+ * XInput 選單內容
+ */
+@Composable
+private fun XInputMenuContent(
+    onBack: () -> Unit,
+    onDismiss: () -> Unit
+) {
+    Column(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(bottom = 32.dp, start = 16.dp, end = 16.dp)
+    ) {
+        // 返回組合模式（主要功能）
+        Button(
             onClick = onBack,
             modifier = Modifier
-                .align(Alignment.TopStart)
-                .padding(8.dp)
+                .fillMaxWidth()
+                .height(56.dp)
         ) {
             Text("← 返回組合模式", style = MaterialTheme.typography.titleMedium)
+        }
+
+        Spacer(modifier = Modifier.height(8.dp))
+
+        // 關閉選單按鈕
+        OutlinedButton(
+            onClick = onDismiss,
+            modifier = Modifier
+                .fillMaxWidth()
+                .height(56.dp)
+        ) {
+            Text("關閉", style = MaterialTheme.typography.titleMedium)
         }
     }
 }
@@ -157,7 +215,7 @@ private fun PortraitLayout(xInputController: BleXInputController) {
     Column(
         modifier = Modifier
             .fillMaxSize()
-            .padding(top = 60.dp),  // 留空間給返回按鈕
+            .padding(16.dp),
         verticalArrangement = Arrangement.SpaceEvenly,
         horizontalAlignment = Alignment.CenterHorizontally
     ) {
@@ -238,7 +296,6 @@ private fun VirtualJoystick(
     modifier: Modifier = Modifier
 ) {
     var offset by remember { mutableStateOf(Offset.Zero) }
-    val coroutineScope = rememberCoroutineScope()
 
     Box(
         modifier = modifier,
