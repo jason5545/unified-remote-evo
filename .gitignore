@@ -43,9 +43,12 @@ misc.xml
 deploymentTargetDropDown.xml
 render.experimental.xml
 
-# Keystore files
+# Keystore files (重要：絕對不要上傳金鑰)
 *.jks
 *.keystore
+keystore.properties
+keystore.base64
+release.keystore
 
 # External native build folder generated in Android Studio 2.2 and later
 .externalNativeBuild
