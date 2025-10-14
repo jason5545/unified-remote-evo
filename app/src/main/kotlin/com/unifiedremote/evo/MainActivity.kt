@@ -54,6 +54,7 @@ class MainActivity : ComponentActivity() {
     private lateinit var sensitivityManager: SensitivityManager
     private lateinit var themeManager: ThemeManager
     private var shouldAutoConnect by mutableStateOf(true)  // 是否應該自動連線
+    private var serviceStartRequested = false
 
     // 背景服務
     private var remoteControlService: RemoteControlService? = null
@@ -101,9 +102,7 @@ class MainActivity : ComponentActivity() {
         // 檢查藍牙權限
         checkBluetoothPermission()
 
-        // 啟動並綁定背景服務
-        startAndBindService()
-
+        // Set Compose content
         setContent {
             var mouseController by remember { mutableStateOf<MouseController?>(null) }
             var keyboardController by remember { mutableStateOf<KeyboardController?>(null) }
@@ -322,9 +321,8 @@ class MainActivity : ComponentActivity() {
      * 檢查並請求藍牙權限
      */
     private fun checkBluetoothPermission() {
-        ConnectionLogger.log("📋 檢查藍牙權限...", ConnectionLogger.LogLevel.DEBUG)
+        ConnectionLogger.log("Checking Bluetooth permissions...", ConnectionLogger.LogLevel.DEBUG)
 
-        // Android 13+：先檢查通知權限（前景服務需要）
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
             val notificationGranted = ContextCompat.checkSelfPermission(
                 this,
@@ -332,14 +330,16 @@ class MainActivity : ComponentActivity() {
             ) == PackageManager.PERMISSION_GRANTED
 
             if (!notificationGranted) {
-                ConnectionLogger.log("📋 請求通知權限（前景服務需要）", ConnectionLogger.LogLevel.INFO)
+                bluetoothPermissionGranted = false
+                ConnectionLogger.log("Requesting notification permission (required for foreground service)", ConnectionLogger.LogLevel.INFO)
                 requestPermissions(arrayOf(Manifest.permission.POST_NOTIFICATIONS), 405)
-                return  // 等待權限授予後再繼續
+                return
             }
         }
 
+        startAndBindService()
+
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
-            // Android 12+：需要 BLUETOOTH_CONNECT 和 BLUETOOTH_SCAN
             val connectGranted = ContextCompat.checkSelfPermission(
                 this,
                 Manifest.permission.BLUETOOTH_CONNECT
@@ -350,48 +350,58 @@ class MainActivity : ComponentActivity() {
                 Manifest.permission.BLUETOOTH_SCAN
             ) == PackageManager.PERMISSION_GRANTED
 
-            ConnectionLogger.log("📋 Android 12+ 權限檢查：CONNECT=$connectGranted, SCAN=$scanGranted", ConnectionLogger.LogLevel.DEBUG)
+            ConnectionLogger.log(
+                "Android 12+ permission check: CONNECT=$connectGranted, SCAN=$scanGranted",
+                ConnectionLogger.LogLevel.DEBUG
+            )
 
-            bluetoothPermissionGranted = connectGranted
-            // ✅ BLE 掃描權限由 ViewModel 管理，不再設定本地變數
+            bluetoothPermissionGranted = connectGranted && scanGranted
+            ConnectionLogger.log(
+                "Bluetooth permission state: bluetoothPermissionGranted=$bluetoothPermissionGranted",
+                ConnectionLogger.LogLevel.DEBUG
+            )
 
-            ConnectionLogger.log("📋 設定權限狀態：bluetoothPermissionGranted=$connectGranted", ConnectionLogger.LogLevel.DEBUG)
-
-            // 依序請求權限（使用原廠的 requestCode）
             if (!connectGranted) {
-                ConnectionLogger.log("📋 請求 BLUETOOTH_CONNECT 權限", ConnectionLogger.LogLevel.INFO)
+                ConnectionLogger.log("Requesting BLUETOOTH_CONNECT permission", ConnectionLogger.LogLevel.INFO)
                 requestPermissions(arrayOf(Manifest.permission.BLUETOOTH_CONNECT), 403)
-            } else if (!scanGranted) {
-                ConnectionLogger.log("📋 請求 BLUETOOTH_SCAN 權限", ConnectionLogger.LogLevel.INFO)
-                requestPermissions(arrayOf(Manifest.permission.BLUETOOTH_SCAN), 404)
-            } else {
-                ConnectionLogger.log("✅ 所有藍牙權限已授予", ConnectionLogger.LogLevel.INFO)
+                return
             }
+
+            if (!scanGranted) {
+                ConnectionLogger.log("Requesting BLUETOOTH_SCAN permission", ConnectionLogger.LogLevel.INFO)
+                requestPermissions(arrayOf(Manifest.permission.BLUETOOTH_SCAN), 404)
+                return
+            }
+
+            ConnectionLogger.log("All Bluetooth permissions granted", ConnectionLogger.LogLevel.INFO)
         } else {
-            // Android 11 以下：需要位置權限才能進行 BLE 掃描
             val locationGranted = ContextCompat.checkSelfPermission(
                 this,
                 Manifest.permission.ACCESS_FINE_LOCATION
             ) == PackageManager.PERMISSION_GRANTED
 
-            ConnectionLogger.log("📋 Android 11- 權限檢查：LOCATION=$locationGranted", ConnectionLogger.LogLevel.DEBUG)
+            ConnectionLogger.log(
+                "Android 11- permission check: LOCATION=$locationGranted",
+                ConnectionLogger.LogLevel.DEBUG
+            )
 
-            bluetoothPermissionGranted = true  // Android 11- 不需要執行時藍牙權限
-            // ✅ BLE 掃描權限由 ViewModel 管理，不再設定本地變數
-
-            ConnectionLogger.log("📋 設定權限狀態：bluetoothPermissionGranted=true", ConnectionLogger.LogLevel.DEBUG)
+            bluetoothPermissionGranted = locationGranted
+            ConnectionLogger.log(
+                "Bluetooth permission state: bluetoothPermissionGranted=$bluetoothPermissionGranted",
+                ConnectionLogger.LogLevel.DEBUG
+            )
 
             if (!locationGranted) {
-                ConnectionLogger.log("需要位置權限以進行 BLE 掃描", ConnectionLogger.LogLevel.INFO)
-                // 請求位置權限（原廠請求兩個：FINE 和 COARSE）
+                ConnectionLogger.log("Location permission required for BLE scan", ConnectionLogger.LogLevel.INFO)
                 val permissions = arrayOf(
                     Manifest.permission.ACCESS_FINE_LOCATION,
                     Manifest.permission.ACCESS_COARSE_LOCATION
                 )
-                requestPermissions(permissions, 404)  // 使用原廠的 requestCode
-            } else {
-                ConnectionLogger.log("✅ 所有藍牙權限已授予", ConnectionLogger.LogLevel.INFO)
+                requestPermissions(permissions, 404)
+                return
             }
+
+            ConnectionLogger.log("All Bluetooth permissions granted", ConnectionLogger.LogLevel.INFO)
         }
     }
 
@@ -654,12 +664,15 @@ class MainActivity : ComponentActivity() {
      * 啟動並綁定背景服務
      */
     private fun startAndBindService() {
-        // 啟動服務
-        RemoteControlService.start(this)
+        if (!serviceStartRequested) {
+            RemoteControlService.start(this)
+            serviceStartRequested = true
+        }
 
-        // 綁定服務
-        val intent = Intent(this, RemoteControlService::class.java)
-        bindService(intent, serviceConnection, Context.BIND_AUTO_CREATE)
+        if (!serviceBound) {
+            val intent = Intent(this, RemoteControlService::class.java)
+            bindService(intent, serviceConnection, Context.BIND_AUTO_CREATE)
+        }
     }
 }
 
