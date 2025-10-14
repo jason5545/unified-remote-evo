@@ -128,83 +128,140 @@ private fun XInputMenuContent(
 
 @Composable
 private fun LandscapeLayout(xInputController: BleXInputController) {
-    Row(
-        modifier = Modifier.fillMaxSize(),
-        horizontalArrangement = Arrangement.SpaceBetween
+    // 扳機狀態（提升到父布局）
+    var leftTrigger by remember { mutableStateOf(0f) }
+    var rightTrigger by remember { mutableStateOf(0f) }
+
+    Column(
+        modifier = Modifier.fillMaxSize()
     ) {
-        // 左側：雙搖桿
-        Column(
+        // 上緣：肩鈕 + 扳機
+        Row(
             modifier = Modifier
-                .weight(1f)
-                .fillMaxHeight()
-                .padding(16.dp),
-            verticalArrangement = Arrangement.SpaceEvenly,
-            horizontalAlignment = Alignment.CenterHorizontally
+                .fillMaxWidth()
+                .padding(horizontal = 16.dp, vertical = 8.dp),
+            horizontalArrangement = Arrangement.SpaceEvenly,
+            verticalAlignment = Alignment.CenterVertically
         ) {
-            // 左搖桿
-            VirtualJoystick(
-                label = "左搖桿",
-                onMove = { x, y ->
-                    kotlinx.coroutines.GlobalScope.launch {
-                        xInputController.setLeftStick(x, y)
-                    }
-                },
-                onRelease = {
-                    kotlinx.coroutines.GlobalScope.launch {
-                        xInputController.setLeftStick(0f, 0f)
-                    }
-                },
-                modifier = Modifier.size(140.dp)
+            // 左肩鈕（LB）
+            XInputButton(
+                label = "LB",
+                color = Color.Gray,
+                button = XInputButton.LB,
+                controller = xInputController,
+                modifier = Modifier.size(width = 70.dp, height = 40.dp)
             )
 
-            // 右搖桿
-            VirtualJoystick(
-                label = "右搖桿",
-                onMove = { x, y ->
+            // 左扳機（LT）
+            TriggerSlider(
+                label = "LT",
+                value = leftTrigger,
+                onValueChange = { newValue ->
+                    leftTrigger = newValue
                     kotlinx.coroutines.GlobalScope.launch {
-                        xInputController.setRightStick(x, y)
+                        xInputController.setTriggers(newValue, rightTrigger)
                     }
                 },
-                onRelease = {
+                modifier = Modifier.width(100.dp)
+            )
+
+            Spacer(modifier = Modifier.weight(1f))
+
+            // 右扳機（RT）
+            TriggerSlider(
+                label = "RT",
+                value = rightTrigger,
+                onValueChange = { newValue ->
+                    rightTrigger = newValue
                     kotlinx.coroutines.GlobalScope.launch {
-                        xInputController.setRightStick(0f, 0f)
+                        xInputController.setTriggers(leftTrigger, newValue)
                     }
                 },
-                modifier = Modifier.size(140.dp)
+                modifier = Modifier.width(100.dp)
+            )
+
+            // 右肩鈕（RB）
+            XInputButton(
+                label = "RB",
+                color = Color.Gray,
+                button = XInputButton.RB,
+                controller = xInputController,
+                modifier = Modifier.size(width = 70.dp, height = 40.dp)
             )
         }
 
-        // 右側：按鈕、扳機、D-Pad
-        Column(
+        // 中央區域：左右兩側控制
+        Row(
             modifier = Modifier
+                .fillMaxWidth()
                 .weight(1f)
-                .fillMaxHeight()
                 .padding(16.dp),
-            verticalArrangement = Arrangement.SpaceEvenly,
-            horizontalAlignment = Alignment.CenterHorizontally
+            horizontalArrangement = Arrangement.SpaceBetween
         ) {
-            // 扳機滑桿
-            TriggerControls(xInputController = xInputController)
-
-            Spacer(modifier = Modifier.height(8.dp))
-
-            // 按鈕面板與 D-Pad
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceEvenly
+            // 左區：左搖桿（上）+ D-Pad（下）
+            Column(
+                modifier = Modifier
+                    .weight(1f)
+                    .fillMaxHeight(),
+                verticalArrangement = Arrangement.SpaceEvenly,
+                horizontalAlignment = Alignment.CenterHorizontally
             ) {
-                // D-Pad（左側）
-                DPadControl(xInputController = xInputController)
+                // 左搖桿
+                VirtualJoystick(
+                    label = "左搖桿",
+                    onMove = { x, y ->
+                        kotlinx.coroutines.GlobalScope.launch {
+                            xInputController.setLeftStick(x, y)
+                        }
+                    },
+                    onRelease = {
+                        kotlinx.coroutines.GlobalScope.launch {
+                            xInputController.setLeftStick(0f, 0f)
+                        }
+                    },
+                    modifier = Modifier.size(140.dp)
+                )
 
-                // 按鈕面板（右側）
-                ButtonPanel(xInputController = xInputController)
+                // D-Pad（方向鍵）
+                DPadControl(xInputController = xInputController)
             }
 
-            Spacer(modifier = Modifier.height(8.dp))
+            // 右區：A/B/X/Y 按鈕（上）+ 右搖桿（下）
+            Column(
+                modifier = Modifier
+                    .weight(1f)
+                    .fillMaxHeight(),
+                verticalArrangement = Arrangement.SpaceEvenly,
+                horizontalAlignment = Alignment.CenterHorizontally
+            ) {
+                // A/B/X/Y 按鈕面板
+                ButtonPanel(xInputController = xInputController)
 
-            // 系統按鈕（Start/Back）
-            SystemButtons(xInputController = xInputController)
+                // 右搖桿
+                VirtualJoystick(
+                    label = "右搖桿",
+                    onMove = { x, y ->
+                        kotlinx.coroutines.GlobalScope.launch {
+                            xInputController.setRightStick(x, y)
+                        }
+                    },
+                    onRelease = {
+                        kotlinx.coroutines.GlobalScope.launch {
+                            xInputController.setRightStick(0f, 0f)
+                        }
+                    },
+                    modifier = Modifier.size(140.dp)
+                )
+            }
         }
+
+        // 底部：系統按鈕（Start/Back/L3/R3）
+        SystemButtons(
+            xInputController = xInputController,
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 16.dp, vertical = 8.dp)
+        )
     }
 }
 
@@ -212,17 +269,74 @@ private fun LandscapeLayout(xInputController: BleXInputController) {
 
 @Composable
 private fun PortraitLayout(xInputController: BleXInputController) {
+    // 扳機狀態（提升到父布局）
+    var leftTrigger by remember { mutableStateOf(0f) }
+    var rightTrigger by remember { mutableStateOf(0f) }
+
     Column(
         modifier = Modifier
             .fillMaxSize()
             .padding(16.dp),
-        verticalArrangement = Arrangement.SpaceEvenly,
+        verticalArrangement = Arrangement.spacedBy(12.dp),
         horizontalAlignment = Alignment.CenterHorizontally
     ) {
-        // 上方：雙搖桿
+        // 第一排：肩鈕（LB/RB）
         Row(
             modifier = Modifier.fillMaxWidth(),
             horizontalArrangement = Arrangement.SpaceEvenly
+        ) {
+            XInputButton(
+                label = "LB",
+                color = Color.Gray,
+                button = XInputButton.LB,
+                controller = xInputController,
+                modifier = Modifier.size(width = 80.dp, height = 40.dp)
+            )
+            XInputButton(
+                label = "RB",
+                color = Color.Gray,
+                button = XInputButton.RB,
+                controller = xInputController,
+                modifier = Modifier.size(width = 80.dp, height = 40.dp)
+            )
+        }
+
+        // 第二排：扳機滑桿（LT/RT）
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.SpaceEvenly
+        ) {
+            TriggerSlider(
+                label = "LT",
+                value = leftTrigger,
+                onValueChange = { newValue ->
+                    leftTrigger = newValue
+                    kotlinx.coroutines.GlobalScope.launch {
+                        xInputController.setTriggers(newValue, rightTrigger)
+                    }
+                },
+                modifier = Modifier.width(120.dp)
+            )
+            TriggerSlider(
+                label = "RT",
+                value = rightTrigger,
+                onValueChange = { newValue ->
+                    rightTrigger = newValue
+                    kotlinx.coroutines.GlobalScope.launch {
+                        xInputController.setTriggers(leftTrigger, newValue)
+                    }
+                },
+                modifier = Modifier.width(120.dp)
+            )
+        }
+
+        Spacer(modifier = Modifier.height(8.dp))
+
+        // 第三排：左搖桿 + A/B/X/Y 按鈕
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.SpaceEvenly,
+            verticalAlignment = Alignment.CenterVertically
         ) {
             // 左搖桿
             VirtualJoystick(
@@ -239,6 +353,21 @@ private fun PortraitLayout(xInputController: BleXInputController) {
                 },
                 modifier = Modifier.size(130.dp)
             )
+
+            // A/B/X/Y 按鈕面板
+            ButtonPanel(xInputController = xInputController)
+        }
+
+        Spacer(modifier = Modifier.height(8.dp))
+
+        // 第四排：D-Pad + 右搖桿
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.SpaceEvenly,
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            // D-Pad（方向鍵）
+            DPadControl(xInputController = xInputController)
 
             // 右搖桿
             VirtualJoystick(
@@ -257,32 +386,13 @@ private fun PortraitLayout(xInputController: BleXInputController) {
             )
         }
 
-        Spacer(modifier = Modifier.height(16.dp))
+        Spacer(modifier = Modifier.height(8.dp))
 
-        // 下方：扳機、按鈕、D-Pad
-        Column(
-            modifier = Modifier.fillMaxWidth(),
-            verticalArrangement = Arrangement.spacedBy(12.dp),
-            horizontalAlignment = Alignment.CenterHorizontally
-        ) {
-            // 扳機滑桿
-            TriggerControls(xInputController = xInputController)
-
-            // 按鈕面板與 D-Pad
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceEvenly
-            ) {
-                // D-Pad（左側）
-                DPadControl(xInputController = xInputController)
-
-                // 按鈕面板（右側）
-                ButtonPanel(xInputController = xInputController)
-            }
-
-            // 系統按鈕
-            SystemButtons(xInputController = xInputController)
-        }
+        // 底部：系統按鈕（Start/Back/L3/R3）
+        SystemButtons(
+            xInputController = xInputController,
+            modifier = Modifier.fillMaxWidth()
+        )
     }
 }
 
@@ -368,7 +478,7 @@ private fun VirtualJoystick(
     }
 }
 
-// ============ 按鈕面板（A/B/X/Y + 肩鈕） ============
+// ============ 按鈕面板（A/B/X/Y）============
 
 @Composable
 private fun ButtonPanel(xInputController: BleXInputController) {
@@ -376,27 +486,6 @@ private fun ButtonPanel(xInputController: BleXInputController) {
         horizontalAlignment = Alignment.CenterHorizontally,
         verticalArrangement = Arrangement.spacedBy(4.dp)
     ) {
-        // LB/RB 肩鈕
-        Row(
-            horizontalArrangement = Arrangement.spacedBy(8.dp),
-            modifier = Modifier.padding(bottom = 8.dp)
-        ) {
-            XInputButton(
-                label = "LB",
-                color = Color.Gray,
-                button = XInputButton.LB,
-                controller = xInputController,
-                modifier = Modifier.size(width = 60.dp, height = 40.dp)
-            )
-            XInputButton(
-                label = "RB",
-                color = Color.Gray,
-                button = XInputButton.RB,
-                controller = xInputController,
-                modifier = Modifier.size(width = 60.dp, height = 40.dp)
-            )
-        }
-
         // Y 鈕（上）
         XInputButton(
             label = "Y",
@@ -570,64 +659,38 @@ private fun DPadButton(
     }
 }
 
-// ============ 扳機控制（LT/RT 滑桿） ============
+// ============ 單個扳機滑桿元件 ============
 
 @Composable
-private fun TriggerControls(xInputController: BleXInputController) {
-    var leftTrigger by remember { mutableStateOf(0f) }
-    var rightTrigger by remember { mutableStateOf(0f) }
-    val coroutineScope = rememberCoroutineScope()
-
-    Row(
-        modifier = Modifier.fillMaxWidth(),
-        horizontalArrangement = Arrangement.SpaceEvenly
+private fun TriggerSlider(
+    label: String,
+    value: Float,
+    onValueChange: (Float) -> Unit,
+    modifier: Modifier = Modifier
+) {
+    Column(
+        horizontalAlignment = Alignment.CenterHorizontally,
+        modifier = modifier
     ) {
-        // 左扳機（LT）
-        Column(
-            horizontalAlignment = Alignment.CenterHorizontally,
-            modifier = Modifier.width(80.dp)
-        ) {
-            Text("LT", style = MaterialTheme.typography.labelMedium)
-            Slider(
-                value = leftTrigger,
-                onValueChange = {
-                    leftTrigger = it
-                    coroutineScope.launch {
-                        xInputController.setTriggers(leftTrigger, rightTrigger)
-                    }
-                },
-                valueRange = 0f..1f,
-                modifier = Modifier.height(120.dp)
-            )
-        }
-
-        // 右扳機（RT）
-        Column(
-            horizontalAlignment = Alignment.CenterHorizontally,
-            modifier = Modifier.width(80.dp)
-        ) {
-            Text("RT", style = MaterialTheme.typography.labelMedium)
-            Slider(
-                value = rightTrigger,
-                onValueChange = {
-                    rightTrigger = it
-                    coroutineScope.launch {
-                        xInputController.setTriggers(leftTrigger, rightTrigger)
-                    }
-                },
-                valueRange = 0f..1f,
-                modifier = Modifier.height(120.dp)
-            )
-        }
+        Text(label, style = MaterialTheme.typography.labelMedium)
+        Slider(
+            value = value,
+            onValueChange = onValueChange,
+            valueRange = 0f..1f,
+            modifier = Modifier.fillMaxWidth()
+        )
     }
 }
 
 // ============ 系統按鈕（Start/Back/L3/R3） ============
 
 @Composable
-private fun SystemButtons(xInputController: BleXInputController) {
+private fun SystemButtons(
+    xInputController: BleXInputController,
+    modifier: Modifier = Modifier
+) {
     Row(
-        modifier = Modifier.fillMaxWidth(),
+        modifier = modifier,
         horizontalArrangement = Arrangement.SpaceEvenly,
         verticalAlignment = Alignment.CenterVertically
     ) {
