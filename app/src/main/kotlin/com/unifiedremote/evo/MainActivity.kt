@@ -294,11 +294,11 @@ class MainActivity : ComponentActivity() {
                     // 我們簡化：直接請求下一個權限
                     checkBluetoothPermission()
                 }
-                404 -> {  // BLUETOOTH_SCAN 授予
-                    ConnectionLogger.log("✅ BLE 掃描權限已授予，自動開始掃描", ConnectionLogger.LogLevel.INFO)
-                    // ✅ 觸發 ViewModel 重新檢查狀態並自動開始掃描
+                404 -> {  // BLUETOOTH_SCAN 或定位權限授予
+                    ConnectionLogger.log("✅ BLE / 定位權限已授予，更新狀態", ConnectionLogger.LogLevel.INFO)
                     bleViewModel.onVisible()
                     bleViewModel.startScan()
+                    checkBluetoothPermission()
                 }
             }
         } else {
@@ -355,12 +355,6 @@ class MainActivity : ComponentActivity() {
                 ConnectionLogger.LogLevel.DEBUG
             )
 
-            bluetoothPermissionGranted = connectGranted && scanGranted
-            ConnectionLogger.log(
-                "Bluetooth permission state: bluetoothPermissionGranted=$bluetoothPermissionGranted",
-                ConnectionLogger.LogLevel.DEBUG
-            )
-
             if (!connectGranted) {
                 ConnectionLogger.log("Requesting BLUETOOTH_CONNECT permission", ConnectionLogger.LogLevel.INFO)
                 requestPermissions(arrayOf(Manifest.permission.BLUETOOTH_CONNECT), 403)
@@ -373,6 +367,11 @@ class MainActivity : ComponentActivity() {
                 return
             }
 
+            bluetoothPermissionGranted = true
+            ConnectionLogger.log(
+                "Bluetooth permission state: bluetoothPermissionGranted=$bluetoothPermissionGranted",
+                ConnectionLogger.LogLevel.DEBUG
+            )
             ConnectionLogger.log("All Bluetooth permissions granted", ConnectionLogger.LogLevel.INFO)
         } else {
             val locationGranted = ContextCompat.checkSelfPermission(
@@ -382,12 +381,6 @@ class MainActivity : ComponentActivity() {
 
             ConnectionLogger.log(
                 "Android 11- permission check: LOCATION=$locationGranted",
-                ConnectionLogger.LogLevel.DEBUG
-            )
-
-            bluetoothPermissionGranted = locationGranted
-            ConnectionLogger.log(
-                "Bluetooth permission state: bluetoothPermissionGranted=$bluetoothPermissionGranted",
                 ConnectionLogger.LogLevel.DEBUG
             )
 
@@ -401,6 +394,11 @@ class MainActivity : ComponentActivity() {
                 return
             }
 
+            bluetoothPermissionGranted = true
+            ConnectionLogger.log(
+                "Bluetooth permission state: bluetoothPermissionGranted=$bluetoothPermissionGranted",
+                ConnectionLogger.LogLevel.DEBUG
+            )
             ConnectionLogger.log("All Bluetooth permissions granted", ConnectionLogger.LogLevel.INFO)
         }
     }
