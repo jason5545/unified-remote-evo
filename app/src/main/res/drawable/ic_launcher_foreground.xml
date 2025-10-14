@@ -5,12 +5,56 @@
     android:viewportWidth="108"
     android:viewportHeight="108">
     <group
-        android:scaleX="2.0"
-        android:scaleY="2.0"
-        android:translateX="25.0"
-        android:translateY="25.0">
+        android:scaleX="1.0"
+        android:scaleY="1.0"
+        android:translateX="0"
+        android:translateY="0">
+
+        <!-- 連線波紋圓圈（外層） -->
+        <path
+            android:fillColor="#00000000"
+            android:strokeColor="#FFFFFF"
+            android:strokeWidth="2"
+            android:strokeAlpha="0.3"
+            android:pathData="M54,22 A32,32 0 1,1 54,86 A32,32 0 1,1 54,22 Z" />
+
+        <!-- 連線波紋圓圈（中層） -->
+        <path
+            android:fillColor="#00000000"
+            android:strokeColor="#FFFFFF"
+            android:strokeWidth="2.5"
+            android:strokeAlpha="0.5"
+            android:pathData="M54,32 A22,22 0 1,1 54,76 A22,22 0 1,1 54,32 Z" />
+
+        <!-- 觸控手勢圓圈（內層） -->
         <path
             android:fillColor="#FFFFFF"
-            android:pathData="M14,2H10A2,2 0 0,0 8,4V20A2,2 0 0,0 10,22H14A2,2 0 0,0 16,20V4A2,2 0 0,0 14,2M14,18H10V6H14V18Z" />
+            android:fillAlpha="0.15"
+            android:strokeColor="#FFFFFF"
+            android:strokeWidth="3"
+            android:pathData="M54,40 A14,14 0 1,1 54,68 A14,14 0 1,1 54,40 Z" />
+
+        <!-- 滑鼠游標主體 -->
+        <path
+            android:fillColor="#FFFFFF"
+            android:pathData="M46,42 L46,66 L51,61 L54,68 L57,67 L54,60 L60,60 Z" />
+
+        <!-- 滑鼠游標邊框（增強對比） -->
+        <path
+            android:fillColor="#00000000"
+            android:strokeColor="#5E35B1"
+            android:strokeWidth="1"
+            android:pathData="M46,42 L46,66 L51,61 L54,68 L57,67 L54,60 L60,60 Z" />
+
+        <!-- 連線符號（小點） -->
+        <path
+            android:fillColor="#FFFFFF"
+            android:pathData="M62,42 A2,2 0 1,1 62,46 A2,2 0 1,1 62,42 Z" />
+        <path
+            android:fillColor="#FFFFFF"
+            android:pathData="M66,48 A2,2 0 1,1 66,52 A2,2 0 1,1 66,48 Z" />
+        <path
+            android:fillColor="#FFFFFF"
+            android:pathData="M66,56 A2,2 0 1,1 66,60 A2,2 0 1,1 66,56 Z" />
     </group>
 </vector>

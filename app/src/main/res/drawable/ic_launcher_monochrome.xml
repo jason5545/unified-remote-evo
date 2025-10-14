@@ -1,0 +1,43 @@
+<?xml version="1.0" encoding="utf-8"?>
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="108dp"
+    android:height="108dp"
+    android:viewportWidth="108"
+    android:viewportHeight="108">
+    <group
+        android:scaleX="1.0"
+        android:scaleY="1.0"
+        android:translateX="0"
+        android:translateY="0">
+
+        <!-- 外層圓圈 -->
+        <path
+            android:fillColor="#00000000"
+            android:strokeColor="#000000"
+            android:strokeWidth="2.5"
+            android:pathData="M54,28 A26,26 0 1,1 54,80 A26,26 0 1,1 54,28 Z" />
+
+        <!-- 內層圓圈 -->
+        <path
+            android:fillColor="#00000000"
+            android:strokeColor="#000000"
+            android:strokeWidth="3"
+            android:pathData="M54,40 A14,14 0 1,1 54,68 A14,14 0 1,1 54,40 Z" />
+
+        <!-- 滑鼠游標 -->
+        <path
+            android:fillColor="#000000"
+            android:pathData="M46,42 L46,66 L51,61 L54,68 L57,67 L54,60 L60,60 Z" />
+
+        <!-- 連線符號點 -->
+        <path
+            android:fillColor="#000000"
+            android:pathData="M62,42 A2,2 0 1,1 62,46 A2,2 0 1,1 62,42 Z" />
+        <path
+            android:fillColor="#000000"
+            android:pathData="M66,48 A2,2 0 1,1 66,52 A2,2 0 1,1 66,48 Z" />
+        <path
+            android:fillColor="#000000"
+            android:pathData="M66,56 A2,2 0 1,1 66,60 A2,2 0 1,1 66,56 Z" />
+    </group>
+</vector>
