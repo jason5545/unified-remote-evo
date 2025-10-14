@@ -212,7 +212,17 @@ class BleViewModel(application: Application) : AndroidViewModel(application) {
                 ConnectionLogger.LogLevel.INFO
             )
             try {
-                bleManager.connect(deviceAddress)
+                val started = bleManager.connect(deviceAddress)
+                if (!started) {
+                    ConnectionLogger.log(
+                        "⚠️ BLE 自動重連已停止：已達最大重試次數",
+                        ConnectionLogger.LogLevel.ERROR
+                    )
+                    lastConnectedDeviceAddress = null
+                    currentReconnectAttempt = 0
+                    bleManager.disconnect()
+                    return@launch
+                }
             } catch (e: Exception) {
                 ConnectionLogger.log(
                     "❌ 重連失敗: ${e.message}",
@@ -372,7 +382,14 @@ class BleViewModel(application: Application) : AndroidViewModel(application) {
 
         viewModelScope.launch {
             try {
-                bleManager.connect(address)
+                val started = bleManager.connect(address)
+                if (!started) {
+                    ConnectionLogger.log(
+                        "⚠️ 無法開始 BLE 連線：已達最大重試次數",
+                        ConnectionLogger.LogLevel.ERROR
+                    )
+                    bleManager.disconnect()
+                }
             } catch (e: Exception) {
                 ConnectionLogger.log(
                     "❌ 連線失敗: ${e.message}",

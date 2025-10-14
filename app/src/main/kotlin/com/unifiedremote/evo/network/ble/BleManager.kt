@@ -105,6 +105,8 @@ class BleManager(private val context: Context) {
 
     companion object {
         private const val TAG = "BleManager"
+        private const val CONNECT_TIMEOUT_MS = 12_000L
+        private const val MAX_CONNECT_RETRIES = 3
     }
 
     // ============ BLE Action Queue（Handler 佇列機制，模仿原廠實作） ============
@@ -290,6 +292,58 @@ class BleManager(private val context: Context) {
     private var commandCharacteristic: BluetoothGattCharacteristic? = null
 
     private val mainHandler = Handler(Looper.getMainLooper())
+
+    private var lastConnectAddress: String? = null
+    private var connectRetryCount = 0
+    private var connectionTimeoutRunnable: Runnable? = null
+
+    private fun registerConnectAttempt(address: String): Boolean {
+        if (lastConnectAddress != address) {
+            lastConnectAddress = address
+            connectRetryCount = 0
+        }
+
+        if (connectRetryCount >= MAX_CONNECT_RETRIES) {
+            Log.w(TAG, "已達最大連線重試次數 ($MAX_CONNECT_RETRIES)")
+            ConnectionLogger.log(
+                "⚠️ BLE 連線失敗：已達最大重試次數 ($MAX_CONNECT_RETRIES)",
+                ConnectionLogger.LogLevel.ERROR
+            )
+            _connectionState.value = BleConnectionState.Error("連線失敗：已達最大重試次數")
+            return false
+        }
+
+        connectRetryCount++
+        return true
+    }
+
+    private fun resetConnectRetryState() {
+        connectRetryCount = 0
+        lastConnectAddress = null
+    }
+
+    private fun scheduleConnectionTimeout(device: BluetoothDevice) {
+        cancelConnectionTimeout()
+        val runnable = Runnable { onConnectionTimeout(device) }
+        connectionTimeoutRunnable = runnable
+        mainHandler.postDelayed(runnable, CONNECT_TIMEOUT_MS)
+    }
+
+    private fun cancelConnectionTimeout() {
+        connectionTimeoutRunnable?.let { mainHandler.removeCallbacks(it) }
+        connectionTimeoutRunnable = null
+    }
+
+    private fun onConnectionTimeout(device: BluetoothDevice) {
+        connectionTimeoutRunnable = null
+        Log.w(TAG, "BLE 連線逾時: ${device.address}")
+        ConnectionLogger.log(
+            "⚠️ BLE 連線逾時：${device.address}",
+            ConnectionLogger.LogLevel.WARNING
+        )
+        _connectionState.value = BleConnectionState.Error("連線逾時，請稍後再試")
+        bluetoothGatt?.disconnect()
+    }
 
     // ============ 身份驗證狀態 ============
 
@@ -561,9 +615,9 @@ class BleManager(private val context: Context) {
     /**
      * 連線到指定裝置（使用 MAC 地址）
      */
-    fun connect(address: String) {
+    fun connect(address: String): Boolean {
         stopScan()
-        connectByAddress(address)
+        return connectByAddress(address)
     }
 
     /**
@@ -581,6 +635,10 @@ class BleManager(private val context: Context) {
         }
 
         stopScan()
+
+        if (!registerConnectAttempt(address)) {
+            return false
+        }
 
         try {
             // 直接用 MAC 地址取得 BluetoothDevice（不需要掃描）
@@ -602,18 +660,21 @@ class BleManager(private val context: Context) {
         _connectionState.value = BleConnectionState.Connecting(device.name ?: "未知裝置")
         Log.d(TAG, "連線到裝置: ${device.name} (${device.address})")
 
+        cancelConnectionTimeout()
         bluetoothGatt = device.connectGatt(
             context,
             false,  // autoConnect = false（立即連線）
             gattCallback,
             BluetoothDevice.TRANSPORT_LE
         )
+        scheduleConnectionTimeout(device)
     }
 
     private val gattCallback = object : BluetoothGattCallback() {
         override fun onConnectionStateChange(gatt: BluetoothGatt, status: Int, newState: Int) {
             when (newState) {
                 BluetoothProfile.STATE_CONNECTED -> {
+                    cancelConnectionTimeout()
                     Log.d(TAG, "已連線到 GATT 伺服器，開始探索服務...")
 
                     // 設定高優先權（提升效能，與 EmulStick 原始實作一致）
@@ -623,8 +684,8 @@ class BleManager(private val context: Context) {
                     gatt.discoverServices()
                 }
                 BluetoothProfile.STATE_DISCONNECTED -> {
+                    cancelConnectionTimeout()
                     Log.d(TAG, "已中斷 GATT 連線")
-                    _connectionState.value = BleConnectionState.Disconnected
                     cleanup()
                 }
             }
@@ -2276,6 +2337,8 @@ class BleManager(private val context: Context) {
     fun disconnect() {
         Log.d(TAG, "中斷連線")
         stopScan()
+        cancelConnectionTimeout()
+        resetConnectRetryState()
         bluetoothGatt?.disconnect()
         cleanup()
     }
@@ -2295,6 +2358,7 @@ class BleManager(private val context: Context) {
      * 清理資源
      */
     private fun cleanup() {
+        cancelConnectionTimeout()
         bluetoothGatt?.close()
         bluetoothGatt = null
         ch1Characteristic = null
@@ -2311,7 +2375,9 @@ class BleManager(private val context: Context) {
         hardwareType = EmulStickHardware.UNKNOWN
         isAuthenticationComplete = false
 
-        _connectionState.value = BleConnectionState.Disconnected
+        if (_connectionState.value !is BleConnectionState.Error) {
+            _connectionState.value = BleConnectionState.Disconnected
+        }
     }
 
     // ============ 身份驗證 ============
@@ -2560,6 +2626,8 @@ class BleManager(private val context: Context) {
      * 驗證完成
      */
     private fun onAuthenticationComplete(gatt: BluetoothGatt) {
+        cancelConnectionTimeout()
+        resetConnectRetryState()
         isAuthenticationComplete = true
         val deviceName = gatt.device.name ?: "未知裝置"
         val deviceAddress = gatt.device.address
