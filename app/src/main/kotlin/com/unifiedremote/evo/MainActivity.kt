@@ -58,7 +58,7 @@ class MainActivity : ComponentActivity() {
 
     // 背景服務
     private var remoteControlService: RemoteControlService? = null
-    private var serviceBound = false
+    private var serviceBound by mutableStateOf(false)
     private val serviceConnection = object : ServiceConnection {
         override fun onServiceConnected(name: ComponentName?, service: IBinder?) {
             val binder = service as? RemoteControlService.RemoteControlBinder
@@ -118,20 +118,21 @@ class MainActivity : ComponentActivity() {
                 savedDevices = deviceHistoryManager.getAllDevices()
             }
 
-            // ✅ 自動連線邏輯（單獨的 LaunchedEffect，避免互相干擾）
-            LaunchedEffect(Unit) {
-                if (shouldAutoConnect) {
+            // ✅ 自動連線邏輯：待背景服務綁定後執行一次
+            LaunchedEffect(serviceBound, shouldAutoConnect) {
+                if (shouldAutoConnect && serviceBound) {
                     shouldAutoConnect = false  // 只自動連線一次
                     val lastDevice = deviceHistoryManager.getLastDevice()
                     if (lastDevice != null) {
                         ConnectionLogger.log("自動連線至: ${lastDevice.name}", ConnectionLogger.LogLevel.INFO)
-                        delay(500)  // 短暫延遲確保 UI 已載入
+                        delay(500)  // 短暫延遲確保 UI 已載入並且服務可用
                         connectSaved(
                             device = lastDevice,
                             onSuccess = { mouse, keyboard, deviceId ->
                                 mouseController = mouse
                                 keyboardController = keyboard
                                 currentDeviceId = deviceId
+                                savedDevices = deviceHistoryManager.getAllDevices()
                             }
                         )
                     }
