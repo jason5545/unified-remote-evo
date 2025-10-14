@@ -428,16 +428,35 @@ class MainActivity : ComponentActivity() {
                 // 透過服務建立連線
                 service.connectTcp(host, port)
 
-                // 從服務取得連線管理器並建立控制器
-                val manager = service.getUnifiedConnectionManager()
-                if (manager != null) {
-                    connectionManager = manager
-                    val mouse = MouseController(manager)
-                    val keyboard = KeyboardController(manager)
-                    val deviceId = "tcp_${host}_${port}"
-                    onSuccess(mouse, keyboard, deviceId)
-                } else {
-                    ConnectionLogger.log("❌ 無法取得連線管理器", ConnectionLogger.LogLevel.ERROR)
+                // ✅ 等待連線真正完成（Connected 或 Error）
+                val finalState = service.connectionState.first { state ->
+                    state is com.unifiedremote.evo.service.ServiceConnectionState.Connected ||
+                    state is com.unifiedremote.evo.service.ServiceConnectionState.Error
+                }
+
+                when (finalState) {
+                    is com.unifiedremote.evo.service.ServiceConnectionState.Connected -> {
+                        ConnectionLogger.log("✅ TCP 連線成功", ConnectionLogger.LogLevel.INFO)
+
+                        // 從服務取得連線管理器並建立控制器
+                        val manager = service.getUnifiedConnectionManager()
+                        if (manager != null) {
+                            connectionManager = manager
+                            val mouse = MouseController(manager)
+                            val keyboard = KeyboardController(manager)
+                            val deviceId = "tcp_${host}_${port}"
+                            onSuccess(mouse, keyboard, deviceId)
+                        } else {
+                            ConnectionLogger.log("❌ 無法取得連線管理器", ConnectionLogger.LogLevel.ERROR)
+                        }
+                    }
+                    is com.unifiedremote.evo.service.ServiceConnectionState.Error -> {
+                        ConnectionLogger.log("❌ TCP 連線失敗: ${finalState.message}", ConnectionLogger.LogLevel.ERROR)
+                        // ⚠️ 不呼叫 onSuccess，保持在設定畫面
+                    }
+                    else -> {
+                        ConnectionLogger.log("❌ TCP 連線失敗：未知狀態", ConnectionLogger.LogLevel.ERROR)
+                    }
                 }
             } catch (e: Exception) {
                 ConnectionLogger.log("❌ TCP 連線失敗: ${e.message}", ConnectionLogger.LogLevel.ERROR)
@@ -481,16 +500,35 @@ class MainActivity : ComponentActivity() {
                 // 透過服務建立連線
                 service.connectBluetooth(device)
 
-                // 從服務取得連線管理器並建立控制器
-                val manager = service.getUnifiedConnectionManager()
-                if (manager != null) {
-                    connectionManager = manager
-                    val mouse = MouseController(manager)
-                    val keyboard = KeyboardController(manager)
-                    val deviceId = "bt_${device.address}"
-                    onSuccess(mouse, keyboard, deviceId)
-                } else {
-                    ConnectionLogger.log("❌ 無法取得連線管理器", ConnectionLogger.LogLevel.ERROR)
+                // ✅ 等待連線真正完成（Connected 或 Error）
+                val finalState = service.connectionState.first { state ->
+                    state is com.unifiedremote.evo.service.ServiceConnectionState.Connected ||
+                    state is com.unifiedremote.evo.service.ServiceConnectionState.Error
+                }
+
+                when (finalState) {
+                    is com.unifiedremote.evo.service.ServiceConnectionState.Connected -> {
+                        ConnectionLogger.log("✅ 藍牙連線成功", ConnectionLogger.LogLevel.INFO)
+
+                        // 從服務取得連線管理器並建立控制器
+                        val manager = service.getUnifiedConnectionManager()
+                        if (manager != null) {
+                            connectionManager = manager
+                            val mouse = MouseController(manager)
+                            val keyboard = KeyboardController(manager)
+                            val deviceId = "bt_${device.address}"
+                            onSuccess(mouse, keyboard, deviceId)
+                        } else {
+                            ConnectionLogger.log("❌ 無法取得連線管理器", ConnectionLogger.LogLevel.ERROR)
+                        }
+                    }
+                    is com.unifiedremote.evo.service.ServiceConnectionState.Error -> {
+                        ConnectionLogger.log("❌ 藍牙連線失敗: ${finalState.message}", ConnectionLogger.LogLevel.ERROR)
+                        // ⚠️ 不呼叫 onSuccess，保持在設定畫面
+                    }
+                    else -> {
+                        ConnectionLogger.log("❌ 藍牙連線失敗：未知狀態", ConnectionLogger.LogLevel.ERROR)
+                    }
                 }
             } catch (e: Exception) {
                 ConnectionLogger.log("❌ 藍牙連線失敗: ${e.message}", ConnectionLogger.LogLevel.ERROR)
