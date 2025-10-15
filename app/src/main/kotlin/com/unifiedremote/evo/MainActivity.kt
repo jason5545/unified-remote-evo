@@ -129,7 +129,6 @@ class MainActivity : ComponentActivity() {
                 bleUiState.isBluetoothOn
             ) {
                 if (!shouldAutoConnect) {
-                    autoConnectStatus = null
                     return@LaunchedEffect
                 }
 
