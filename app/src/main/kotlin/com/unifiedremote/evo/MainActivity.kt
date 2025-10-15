@@ -55,6 +55,7 @@ class MainActivity : ComponentActivity() {
     private lateinit var themeManager: ThemeManager
     private var shouldAutoConnect by mutableStateOf(true)  // 是否應該自動連線
     private var serviceStartRequested = false
+    private var notificationPermissionRequested = false
 
     // 背景服務
     private var remoteControlService: RemoteControlService? = null
@@ -368,9 +369,15 @@ class MainActivity : ComponentActivity() {
 
             if (!notificationGranted) {
                 bluetoothPermissionGranted = false
-                ConnectionLogger.log("📋 請求通知權限（前景服務需要）", ConnectionLogger.LogLevel.INFO)
-                requestPermissions(arrayOf(Manifest.permission.POST_NOTIFICATIONS), 405)
-                return
+                if (!notificationPermissionRequested) {
+                    notificationPermissionRequested = true
+                    ConnectionLogger.log("📋 請求通知權限（前景服務需要）", ConnectionLogger.LogLevel.INFO)
+                    requestPermissions(arrayOf(Manifest.permission.POST_NOTIFICATIONS), 405)
+                } else {
+                    ConnectionLogger.log("📋 通知權限仍未授予，持續啟動服務", ConnectionLogger.LogLevel.WARNING)
+                }
+            } else {
+                notificationPermissionRequested = false
             }
         }
 
