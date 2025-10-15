@@ -14,6 +14,7 @@ import com.unifiedremote.evo.R
 import com.unifiedremote.evo.network.ConnectionLogger
 import com.unifiedremote.evo.network.ConnectionType
 import com.unifiedremote.evo.network.UnifiedConnectionManager
+import com.unifiedremote.evo.network.UnifiedConnectionState
 import com.unifiedremote.evo.network.ble.BleManager
 import com.unifiedremote.evo.network.ble.BleConnectionState
 import kotlinx.coroutines.*
@@ -33,6 +34,7 @@ class RemoteControlService : Service() {
     private var unifiedConnectionManager: UnifiedConnectionManager? = null
     private var bleManager: BleManager? = null
     private var currentConnectionType: ConnectionType? = null
+    private var tcpStateJob: Job? = null
 
     // 連線狀態
     private val _connectionState = MutableStateFlow<ServiceConnectionState>(ServiceConnectionState.Disconnected)
@@ -93,6 +95,41 @@ class RemoteControlService : Service() {
             }
 
             unifiedConnectionManager = manager
+
+            tcpStateJob?.cancel()
+            manager.getTcpConnectionState()?.let { stateFlow ->
+                val job = serviceScope.launch {
+                    stateFlow.collect { state ->
+                        if (unifiedConnectionManager !== manager || currentConnectionType != ConnectionType.TCP) {
+                            return@collect
+                        }
+                        when (state) {
+                            is UnifiedConnectionState.Reconnecting -> {
+                                val attemptInfo = "TCP: $host:$port (第${state.attempt}/${state.maxAttempts}次嘗試)"
+                                _connectionState.value = ServiceConnectionState.Connecting("TCP", attemptInfo)
+                                updateNotification("重新連線中...", attemptInfo)
+                                ConnectionLogger.log("TCP reconnect attempt ${state.attempt}/${state.maxAttempts}", ConnectionLogger.LogLevel.WARNING)
+                            }
+                            is UnifiedConnectionState.Error -> {
+                                val message = state.message.ifBlank { "TCP 連線失敗" }
+                                _connectionState.value = ServiceConnectionState.Error(message)
+                                updateNotification("連線失敗", message)
+                                this@RemoteControlService.onDisconnected?.invoke()
+                                ConnectionLogger.log("TCP connection error: $message", ConnectionLogger.LogLevel.ERROR)
+                                cancel("Stop TCP state watcher after error")
+                                return@collect
+                            }
+                            else -> Unit
+                        }
+                    }
+                }
+                job.invokeOnCompletion {
+                    if (tcpStateJob === job) {
+                        tcpStateJob = null
+                    }
+                }
+                tcpStateJob = job
+            }
         } catch (e: Exception) {
             _connectionState.value = ServiceConnectionState.Error("TCP 連線失敗: ${e.message}")
             updateNotification("連線失敗", e.message ?: "未知錯誤")
@@ -204,6 +241,9 @@ class RemoteControlService : Service() {
      * 斷開所有連線
      */
     fun disconnectAll() {
+        tcpStateJob?.cancel()
+        tcpStateJob = null
+
         unifiedConnectionManager?.disconnect()
         unifiedConnectionManager = null
 
