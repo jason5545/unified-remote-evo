@@ -61,12 +61,14 @@ open class KeyboardController(
     open fun press(key: String, modifiers: List<String> = emptyList()) {
         launch {
             val extras = Extras().apply {
-                add("KeyCode", key.uppercase())  // 參數名 KeyCode，值大寫（符合原版 APK）
-                
-                // 修復：將多個修飾鍵組合成單一字串（用 + 分隔）
+                // 修復：根據原版APK的實現，修飾鍵應該直接加到KeyCode中
                 if (modifiers.isNotEmpty()) {
                     val modifierString = modifiers.joinToString("+") { it.uppercase() }
-                    add("Modifiers", modifierString)  // 使用 "Modifiers"（複數）而不是多個 "Modifier"
+                    val combinedKeyCode = "${modifierString}+${key.uppercase()}"
+                    ConnectionLogger.log("修復：使用原版APK方式 - 組合KeyCode: $combinedKeyCode", ConnectionLogger.LogLevel.DEBUG)
+                    add("KeyCode", combinedKeyCode)
+                } else {
+                    add("KeyCode", key.uppercase())
                 }
             }
             val action = Action("Press", "Core.Input", extras)
