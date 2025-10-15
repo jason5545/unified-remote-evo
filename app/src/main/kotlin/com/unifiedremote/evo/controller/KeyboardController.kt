@@ -62,8 +62,11 @@ open class KeyboardController(
         launch {
             val extras = Extras().apply {
                 add("KeyCode", key.uppercase())  // 參數名 KeyCode，值大寫（符合原版 APK）
-                modifiers.forEach { modifier ->
-                    add("Modifier", modifier.uppercase())  // Modifier 也大寫
+                
+                // 修復：將多個修飾鍵組合成單一字串（用 + 分隔）
+                if (modifiers.isNotEmpty()) {
+                    val modifierString = modifiers.joinToString("+") { it.uppercase() }
+                    add("Modifiers", modifierString)  // 使用 "Modifiers"（複數）而不是多個 "Modifier"
                 }
             }
             val action = Action("Press", "Core.Input", extras)
@@ -73,8 +76,13 @@ open class KeyboardController(
             } else {
                 "傳送組合鍵: ${modifiers.joinToString("+"){ it.uppercase() }}+${key.uppercase()}"
             }
-            android.util.Log.d("KeyboardController", logMsg)
             ConnectionLogger.log(logMsg, ConnectionLogger.LogLevel.DEBUG)
+
+            // 診斷日誌：檢查 Extras 內容
+            ConnectionLogger.log("Extras values: ${extras.values}", ConnectionLogger.LogLevel.DEBUG)
+            extras.values.forEach { extra ->
+                ConnectionLogger.log("Extra: ${extra.key} = ${extra.value}", ConnectionLogger.LogLevel.DEBUG)
+            }
 
             connection.send(createControlPacket(action))
         }
