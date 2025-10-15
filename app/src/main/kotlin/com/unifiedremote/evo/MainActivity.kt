@@ -395,6 +395,8 @@ class MainActivity : ComponentActivity() {
                 } else {
                     ConnectionLogger.log("📋 通知權限仍未授予，持續啟動服務", ConnectionLogger.LogLevel.WARNING)
                 }
+                // Avoid starting foreground service without notification permission on Android 13+
+                return
             } else {
                 notificationPermissionRequested = false
             }

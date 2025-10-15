@@ -52,7 +52,13 @@ class RemoteControlService : Service() {
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
         // 立即啟動前景通知（避免系統終止 Service）
-        startForeground(NOTIFICATION_ID, createNotification("準備中...", "正在初始化"))
+        try {
+            startForeground(NOTIFICATION_ID, createNotification("準備中...", "正在初始化"))
+        } catch (securityException: SecurityException) {
+            ConnectionLogger.log("🔒 無法啟動前景服務：缺少通知權限", ConnectionLogger.LogLevel.ERROR)
+            stopSelf()
+            return START_NOT_STICKY
+        }
         ConnectionLogger.log("📡 RemoteControlService 已啟動", ConnectionLogger.LogLevel.INFO)
         return START_STICKY  // Service 被終止後自動重啟
     }
@@ -320,7 +326,11 @@ class RemoteControlService : Service() {
     private fun updateNotification(title: String, text: String) {
         val notification = createNotification(title, text)
         val notificationManager = getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
-        notificationManager.notify(NOTIFICATION_ID, notification)
+        try {
+            notificationManager.notify(NOTIFICATION_ID, notification)
+        } catch (securityException: SecurityException) {
+            ConnectionLogger.log("🔒 無法更新前景通知：缺少通知權限", ConnectionLogger.LogLevel.WARNING)
+        }
     }
 
     override fun onDestroy() {
