@@ -1313,13 +1313,19 @@ fun ShortcutsDialogContent(
     keyboardController: KeyboardController,
     onDismiss: () -> Unit
 ) {
+    // 添加日誌以調試UI佈局問題
+    ConnectionLogger.log("快捷鍵對話框初始化", ConnectionLogger.LogLevel.DEBUG)
+    
     Surface(
         shape = MaterialTheme.shapes.large,
-        color = MaterialTheme.colorScheme.surface
+        color = MaterialTheme.colorScheme.surface,
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(horizontal = 8.dp) // 增加水平外邊距
     ) {
         Column(
             modifier = Modifier
-                .padding(16.dp)
+                .padding(20.dp) // 增加內邊距
                 .verticalScroll(rememberScrollState())
         ) {
             Row(
@@ -1333,102 +1339,122 @@ fun ShortcutsDialogContent(
                 }
             }
 
-            Spacer(modifier = Modifier.height(16.dp))
+            Spacer(modifier = Modifier.height(20.dp)) // 增加標題下方間距
 
             // 編輯快捷鍵
             Text("編輯", style = MaterialTheme.typography.labelLarge)
-            Spacer(modifier = Modifier.height(8.dp))
+            Spacer(modifier = Modifier.height(12.dp)) // 增加標籤下方間距
+            
+            // 第一行按鈕 - 複製、剪下、貼上
             Row(
                 modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.spacedBy(8.dp)
+                horizontalArrangement = Arrangement.spacedBy(12.dp) // 增加按鈕間距
             ) {
                 Button(
                     onClick = { keyboardController.ctrlC() },
-                    modifier = Modifier.weight(1f).height(50.dp)
+                    modifier = Modifier.weight(1f).height(56.dp) // 增加按鈕高度
                 ) {
-                    Text("複製")
+                    Text("複製", style = MaterialTheme.typography.bodyMedium) // 調整文字大小
                 }
                 Button(
                     onClick = { keyboardController.ctrlX() },
-                    modifier = Modifier.weight(1f).height(50.dp)
+                    modifier = Modifier.weight(1f).height(56.dp)
                 ) {
-                    Text("剪下")
+                    Text("剪下", style = MaterialTheme.typography.bodyMedium)
                 }
                 Button(
                     onClick = { keyboardController.ctrlV() },
-                    modifier = Modifier.weight(1f).height(50.dp)
+                    modifier = Modifier.weight(1f).height(56.dp)
                 ) {
-                    Text("貼上")
+                    Text("貼上", style = MaterialTheme.typography.bodyMedium)
                 }
             }
+            
+            Spacer(modifier = Modifier.height(12.dp)) // 增加行間距
+            
+            // 第二行按鈕 - 復原、全選
             Row(
                 modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.spacedBy(8.dp)
+                horizontalArrangement = Arrangement.spacedBy(12.dp)
             ) {
                 Button(
                     onClick = { keyboardController.ctrlZ() },
-                    modifier = Modifier.weight(1f).height(50.dp)
+                    modifier = Modifier.weight(1f).height(56.dp)
                 ) {
-                    Text("復原")
+                    Text("復原", style = MaterialTheme.typography.bodyMedium)
                 }
                 Button(
                     onClick = { keyboardController.ctrlA() },
-                    modifier = Modifier.weight(1f).height(50.dp)
+                    modifier = Modifier.weight(1f).height(56.dp)
                 ) {
-                    Text("全選")
+                    Text("全選", style = MaterialTheme.typography.bodyMedium)
                 }
             }
 
-            Spacer(modifier = Modifier.height(16.dp))
+            Spacer(modifier = Modifier.height(24.dp)) // 增加區塊間距
 
             // 系統快捷鍵
             Text("系統", style = MaterialTheme.typography.labelLarge)
-            Spacer(modifier = Modifier.height(8.dp))
+            Spacer(modifier = Modifier.height(12.dp))
+            
+            // 第一行系統按鈕 - 儲存、尋找
             Row(
                 modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.spacedBy(8.dp)
+                horizontalArrangement = Arrangement.spacedBy(12.dp)
             ) {
                 Button(
                     onClick = { keyboardController.press("s", listOf("ctrl")) },
-                    modifier = Modifier.weight(1f).height(50.dp)
+                    modifier = Modifier.weight(1f).height(56.dp)
                 ) {
-                    Text("儲存")
+                    Text("儲存", style = MaterialTheme.typography.bodyMedium)
                 }
                 Button(
                     onClick = { keyboardController.press("f", listOf("ctrl")) },
-                    modifier = Modifier.weight(1f).height(50.dp)
+                    modifier = Modifier.weight(1f).height(56.dp)
                 ) {
-                    Text("尋找")
+                    Text("尋找", style = MaterialTheme.typography.bodyMedium)
                 }
             }
+            
+            Spacer(modifier = Modifier.height(12.dp))
+            
+            // 第二行系統按鈕 - 關閉、Alt+Tab
             Row(
                 modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.spacedBy(8.dp)
+                horizontalArrangement = Arrangement.spacedBy(12.dp)
             ) {
                 Button(
                     onClick = { keyboardController.press("w", listOf("ctrl")) },
-                    modifier = Modifier.weight(1f).height(50.dp)
+                    modifier = Modifier.weight(1f).height(56.dp)
                 ) {
-                    Text("關閉")
+                    Text("關閉", style = MaterialTheme.typography.bodyMedium)
                 }
                 Button(
                     onClick = { keyboardController.press("tab", listOf("alt")) },
-                    modifier = Modifier.weight(1f).height(50.dp)
+                    modifier = Modifier.weight(1f).height(56.dp)
                 ) {
-                    Text("Alt+Tab")
+                    Text("Alt+Tab", style = MaterialTheme.typography.bodyMedium)
                 }
             }
+            
+            Spacer(modifier = Modifier.height(12.dp))
+            
+            // 第三行系統按鈕 - Alt+F4 (居中)
             Row(
                 modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.spacedBy(8.dp)
+                horizontalArrangement = Arrangement.Center // 居中單個按鈕
             ) {
                 Button(
                     onClick = { keyboardController.press("f4", listOf("alt")) },
-                    modifier = Modifier.weight(1f).height(50.dp)
+                    modifier = Modifier
+                        .width(200.dp) // 固定寬度而不是weight
+                        .height(56.dp)
                 ) {
-                    Text("Alt+F4")
+                    Text("Alt+F4", style = MaterialTheme.typography.bodyMedium)
                 }
             }
+            
+            Spacer(modifier = Modifier.height(16.dp)) // 底部額外間距
         }
     }
 }
