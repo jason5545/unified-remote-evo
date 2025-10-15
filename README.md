@@ -1,6 +1,6 @@
 # Unified Remote Evo - 進化版遙控 APP
 
-**English | [中文](README.md)**
+**[English](README_EN.md) | 中文**
 
 > **♿ 輔助技術專案 | Assistive Technology Project**
 >

@@ -1,6 +1,6 @@
 # Unified Remote Evo - Enhanced Remote Control App
 
-**[English](README_EN.md) | 中文**
+**English | [中文](README.md)**
 
 > **♿ Assistive Technology Project**
 >
