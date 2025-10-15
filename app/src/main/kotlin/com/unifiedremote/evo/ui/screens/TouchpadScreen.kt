@@ -1120,33 +1120,46 @@ fun ExpandableSection(
 fun DirectionKeysContent(keyboardController: KeyboardController) {
     Column(
         modifier = Modifier.fillMaxWidth(),
-        horizontalAlignment = Alignment.CenterHorizontally
+        horizontalAlignment = Alignment.CenterHorizontally,
+        verticalArrangement = Arrangement.spacedBy(4.dp)
     ) {
+        // 上鍵
         Button(
             onClick = { keyboardController.press("up", emptyList()) },
             modifier = Modifier.size(60.dp)
         ) {
             Text("↑", style = MaterialTheme.typography.titleLarge)
         }
-        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+        
+        // 中間一排：左、空白、右
+        Row(
+            horizontalArrangement = Arrangement.spacedBy(4.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
             Button(
                 onClick = { keyboardController.press("left", emptyList()) },
                 modifier = Modifier.size(60.dp)
             ) {
                 Text("←", style = MaterialTheme.typography.titleLarge)
             }
-            Button(
-                onClick = { keyboardController.press("down", emptyList()) },
-                modifier = Modifier.size(60.dp)
-            ) {
-                Text("↓", style = MaterialTheme.typography.titleLarge)
-            }
+            
+            // 中間空白區域，保持十字型布局
+            Spacer(modifier = Modifier.size(60.dp))
+            
             Button(
                 onClick = { keyboardController.press("right", emptyList()) },
                 modifier = Modifier.size(60.dp)
             ) {
                 Text("→", style = MaterialTheme.typography.titleLarge)
             }
+        }
+        
+        // 下鍵
+        Button(
+            onClick = { keyboardController.press("down", emptyList()) },
+            modifier = Modifier.size(60.dp)
+        ) {
+            Text("↓", style = MaterialTheme.typography.titleLarge)
         }
     }
 }
