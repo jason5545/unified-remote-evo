@@ -109,6 +109,7 @@ class MainActivity : ComponentActivity() {
             var keyboardController by remember { mutableStateOf<KeyboardController?>(null) }
             var savedDevices by remember { mutableStateOf<List<SavedDevice>>(emptyList()) }
             var currentDeviceId by remember { mutableStateOf<String?>(null) }
+            var autoConnectStatus by remember { mutableStateOf<String?>(null) }
 
             // ✅ 使用 ViewModel 的統一狀態
             val bleUiState by bleViewModel.uiState.collectAsStateWithLifecycle()
@@ -127,7 +128,13 @@ class MainActivity : ComponentActivity() {
                 bleUiState.permissionsGranted,
                 bleUiState.isBluetoothOn
             ) {
-                if (!shouldAutoConnect || !serviceBound) {
+                if (!shouldAutoConnect) {
+                    autoConnectStatus = null
+                    return@LaunchedEffect
+                }
+
+                if (!serviceBound) {
+                    autoConnectStatus = "等待背景服務啟動以自動連線"
                     return@LaunchedEffect
                 }
 
@@ -136,8 +143,10 @@ class MainActivity : ComponentActivity() {
                     ConnectionLogger.LogLevel.DEBUG
                 )
 
+                autoConnectStatus = "準備自動連線..."
                 val lastDevice = deviceHistoryManager.getLastDevice()
                 if (lastDevice == null) {
+                    autoConnectStatus = "目前沒有可自動連線的裝置"
                     ConnectionLogger.log("自動連線：目前沒有可用的儲存裝置", ConnectionLogger.LogLevel.DEBUG)
                     return@LaunchedEffect
                 }
@@ -146,23 +155,28 @@ class MainActivity : ComponentActivity() {
                     "自動連線目標：${lastDevice.name} (${lastDevice.type})",
                     ConnectionLogger.LogLevel.DEBUG
                 )
+                autoConnectStatus = "自動連線目標：${lastDevice.name}"
 
                 val requiresBluetooth = lastDevice.type != com.unifiedremote.evo.network.ConnectionType.TCP
                 if (requiresBluetooth && !bluetoothPermissionGranted) {
+                    autoConnectStatus = "等待藍牙權限以自動連線"
                     ConnectionLogger.log("自動連線延後：尚未取得藍牙權限", ConnectionLogger.LogLevel.INFO)
                     return@LaunchedEffect
                 }
 
                 if (lastDevice.type == com.unifiedremote.evo.network.ConnectionType.BLE_EMULSTICK) {
                     if (!bleUiState.permissionsGranted || !bleUiState.isBluetoothOn) {
+                        autoConnectStatus = "等待 BLE 權限或藍牙開啟"
                         ConnectionLogger.log("自動連線延後：等待 BLE 權限或藍牙開啟", ConnectionLogger.LogLevel.INFO)
                         return@LaunchedEffect
                     }
                 }
 
                 shouldAutoConnect = false  // 確保只嘗試自動連線一次
+                val targetName = lastDevice.name
+                autoConnectStatus = "正在連線：$targetName"
                 ConnectionLogger.log(
-                    "自動連線執行：${lastDevice.name} (${lastDevice.type})",
+                    "自動連線執行：$targetName (${lastDevice.type})",
                     ConnectionLogger.LogLevel.INFO
                 )
                 delay(500)  // 短暫延遲確保 UI 已載入並且服務可用
@@ -173,6 +187,7 @@ class MainActivity : ComponentActivity() {
                         keyboardController = keyboard
                         currentDeviceId = deviceId
                         savedDevices = deviceHistoryManager.getAllDevices()
+                        autoConnectStatus = "自動連線成功：$targetName"
                     }
                 )
             }
@@ -286,6 +301,7 @@ class MainActivity : ComponentActivity() {
                         bleConnectionState = bleUiState.connectionState,
                         bleViewModel = bleViewModel,
                         savedDevices = savedDevices,
+                        autoConnectStatus = autoConnectStatus,
                         mouseController = mouseController,
                         keyboardController = keyboardController,
                         sensitivityManager = sensitivityManager,
@@ -734,6 +750,7 @@ fun UnifiedRemoteEvoApp(
     bleConnectionState: com.unifiedremote.evo.network.ble.BleConnectionState,
     bleViewModel: BleViewModel,
     savedDevices: List<SavedDevice>,
+    autoConnectStatus: String?,
     mouseController: MouseController?,
     keyboardController: KeyboardController?,
     sensitivityManager: SensitivityManager,
@@ -784,7 +801,8 @@ fun UnifiedRemoteEvoApp(
                     pairedDevices = pairedDevices,
                     bleScannedDevices = bleScannedDevices,
                     bleConnectionState = bleConnectionState,
-                    savedDevices = savedDevices
+                    savedDevices = savedDevices,
+                    autoConnectStatus = autoConnectStatus
                 )
             }
         }

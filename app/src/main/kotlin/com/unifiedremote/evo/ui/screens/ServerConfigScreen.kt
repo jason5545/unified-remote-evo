@@ -45,6 +45,7 @@ fun ServerConfigScreen(
     bleScannedDevices: List<SavedDevice>,
     bleConnectionState: com.unifiedremote.evo.network.ble.BleConnectionState,
     savedDevices: List<SavedDevice>,
+    autoConnectStatus: String? = null,
     modifier: Modifier = Modifier
 ) {
     var selectedType by remember { mutableStateOf(ConnectionType.TCP) }
@@ -70,6 +71,24 @@ fun ServerConfigScreen(
             .verticalScroll(rememberScrollState())
             .padding(24.dp)
     ) {
+        if (autoConnectStatus != null) {
+            Card(
+                colors = CardDefaults.cardColors(
+                    containerColor = MaterialTheme.colorScheme.surfaceVariant
+                ),
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(bottom = 16.dp)
+            ) {
+                Text(
+                    text = autoConnectStatus,
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    modifier = Modifier.padding(16.dp)
+                )
+            }
+        }
+
         Text(
             text = "Unified Remote Evo",
             style = MaterialTheme.typography.headlineLarge,
