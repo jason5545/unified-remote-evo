@@ -1,5 +1,7 @@
 # Unified Remote Evo - 進化版遙控 APP
 
+**English | [中文](README.md)**
+
 > **♿ 輔助技術專案 | Assistive Technology Project**
 >
 > 專為**身心障礙使用者**設計的無障礙遙控 APP。

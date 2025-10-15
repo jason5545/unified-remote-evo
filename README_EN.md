@@ -1,5 +1,7 @@
 # Unified Remote Evo - Enhanced Remote Control App
 
+**[English](README_EN.md) | 中文**
+
 > **♿ Assistive Technology Project**
 >
 > An accessible remote control app designed specifically for **users with disabilities**.
