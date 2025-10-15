@@ -60,29 +60,38 @@ open class KeyboardController(
 
     open fun press(key: String, modifiers: List<String> = emptyList()) {
         launch {
-            val extras = Extras().apply {
-                // 修復：根據原版APK的實現，修飾鍵應該直接加到KeyCode中
-                if (modifiers.isNotEmpty()) {
-                    val modifierString = modifiers.joinToString("+") { it.uppercase() }
-                    val combinedKeyCode = "${modifierString}+${key.uppercase()}"
-                    ConnectionLogger.log("修復：使用原版APK方式 - 組合KeyCode: $combinedKeyCode", ConnectionLogger.LogLevel.DEBUG)
-                    add("KeyCode", combinedKeyCode)
-                } else {
+            val action = if (modifiers.isNotEmpty()) {
+                // 修復：使用 Stroke 動作處理修飾鍵組合
+                val keySequence = ArrayList<String>()
+                modifiers.forEach { modifier ->
+                    keySequence.add(modifier.uppercase())
+                }
+                keySequence.add(key.uppercase())
+                
+                val extras = Extras().apply {
+                    keySequence.forEach { keyStr ->
+                        add("", keyStr) // 使用空鍵名，按順序添加按鍵
+                    }
+                }
+                
+                val logMsg = "傳送Stroke序列: ${keySequence.joinToString(" -> ")}"
+                ConnectionLogger.log(logMsg, ConnectionLogger.LogLevel.DEBUG)
+                
+                Action("Stroke", "Core.Input", extras)
+            } else {
+                // 單一按鍵使用 Press 動作
+                val extras = Extras().apply {
                     add("KeyCode", key.uppercase())
                 }
+                
+                ConnectionLogger.log("傳送Press按鍵: ${key.uppercase()}", ConnectionLogger.LogLevel.DEBUG)
+                
+                Action("Press", "Core.Input", extras)
             }
-            val action = Action("Press", "Core.Input", extras)
 
-            val logMsg = if (modifiers.isEmpty()) {
-                "傳送按鍵: ${key.uppercase()}"
-            } else {
-                "傳送組合鍵: ${modifiers.joinToString("+"){ it.uppercase() }}+${key.uppercase()}"
-            }
-            ConnectionLogger.log(logMsg, ConnectionLogger.LogLevel.DEBUG)
-
-            // 診斷日誌：檢查 Extras 內容
-            ConnectionLogger.log("Extras values: ${extras.values}", ConnectionLogger.LogLevel.DEBUG)
-            extras.values.forEach { extra ->
+            // 診斷日誌：檢查 Action 內容
+            ConnectionLogger.log("Action: ${action.name}, Target: ${action.target}", ConnectionLogger.LogLevel.DEBUG)
+            action.extras?.values?.forEach { extra ->
                 ConnectionLogger.log("Extra: ${extra.key} = ${extra.value}", ConnectionLogger.LogLevel.DEBUG)
             }
 
