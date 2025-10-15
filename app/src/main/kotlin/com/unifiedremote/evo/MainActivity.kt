@@ -171,7 +171,6 @@ class MainActivity : ComponentActivity() {
                     }
                 }
 
-                shouldAutoConnect = false  // 確保只嘗試自動連線一次
                 val targetName = lastDevice.name
                 autoConnectStatus = "正在連線：$targetName"
                 ConnectionLogger.log(
@@ -193,6 +192,7 @@ class MainActivity : ComponentActivity() {
                         ConnectionLogger.log("❌ 自動連線失敗：$reason", ConnectionLogger.LogLevel.WARNING)
                     }
                 )
+                shouldAutoConnect = false  // 確保只嘗試自動連線一次
             }
 
             val themeMode = themeManager.themeMode
