@@ -187,6 +187,10 @@ class MainActivity : ComponentActivity() {
                         currentDeviceId = deviceId
                         savedDevices = deviceHistoryManager.getAllDevices()
                         autoConnectStatus = "自動連線成功：$targetName"
+                    },
+                    onFailure = { reason ->
+                        autoConnectStatus = "自動連線失敗：$reason"
+                        ConnectionLogger.log("❌ 自動連線失敗：$reason", ConnectionLogger.LogLevel.WARNING)
                     }
                 )
             }
@@ -465,13 +469,17 @@ class MainActivity : ComponentActivity() {
     private fun connectTcp(
         host: String,
         port: Int,
-        onSuccess: (MouseController, KeyboardController, String) -> Unit
+        onSuccess: (MouseController, KeyboardController, String) -> Unit,
+        onFailure: (String) -> Unit = { reason ->
+            ConnectionLogger.log("? TCP 自動連線失敗: $reason", ConnectionLogger.LogLevel.ERROR)
+        }
     ) {
         lifecycleScope.launch {
             try {
                 val service = remoteControlService
                 if (service == null) {
                     ConnectionLogger.log("❌ 背景服務尚未準備好", ConnectionLogger.LogLevel.ERROR)
+                    onFailure("背景服務尚未準備好")
                     return@launch
                 }
 
@@ -512,18 +520,21 @@ class MainActivity : ComponentActivity() {
                             onSuccess(mouse, keyboard, deviceId)
                         } else {
                             ConnectionLogger.log("❌ 無法取得連線管理器", ConnectionLogger.LogLevel.ERROR)
+                            onFailure("無法取得連線管理器")
                         }
                     }
                     is com.unifiedremote.evo.service.ServiceConnectionState.Error -> {
                         ConnectionLogger.log("❌ TCP 連線失敗: ${finalState.message}", ConnectionLogger.LogLevel.ERROR)
-                        // ⚠️ 不呼叫 onSuccess，保持在設定畫面
+                        onFailure(finalState.message)
                     }
                     else -> {
                         ConnectionLogger.log("❌ TCP 連線失敗：未知狀態", ConnectionLogger.LogLevel.ERROR)
+                        onFailure("連線狀態未知")
                     }
                 }
             } catch (e: Exception) {
                 ConnectionLogger.log("❌ TCP 連線失敗: ${e.message}", ConnectionLogger.LogLevel.ERROR)
+                onFailure(e.message ?: "未知錯誤")
             }
         }
     }
@@ -534,7 +545,10 @@ class MainActivity : ComponentActivity() {
     @SuppressLint("MissingPermission")
     private fun connectBluetooth(
         device: BluetoothDevice,
-        onSuccess: (MouseController, KeyboardController, String) -> Unit
+        onSuccess: (MouseController, KeyboardController, String) -> Unit,
+        onFailure: (String) -> Unit = { reason ->
+            ConnectionLogger.log("❌ 藍牙連線失敗: $reason", ConnectionLogger.LogLevel.ERROR)
+        }
     ) {
         lifecycleScope.launch {
             try {
@@ -584,6 +598,7 @@ class MainActivity : ComponentActivity() {
                             onSuccess(mouse, keyboard, deviceId)
                         } else {
                             ConnectionLogger.log("❌ 無法取得連線管理器", ConnectionLogger.LogLevel.ERROR)
+                            onFailure("無法取得連線管理器")
                         }
                     }
                     is com.unifiedremote.evo.service.ServiceConnectionState.Error -> {
@@ -592,10 +607,12 @@ class MainActivity : ComponentActivity() {
                     }
                     else -> {
                         ConnectionLogger.log("❌ 藍牙連線失敗：未知狀態", ConnectionLogger.LogLevel.ERROR)
+                        onFailure("連線狀態未知")
                     }
                 }
             } catch (e: Exception) {
                 ConnectionLogger.log("❌ 藍牙連線失敗: ${e.message}", ConnectionLogger.LogLevel.ERROR)
+                onFailure(e.message ?: "未知錯誤")
             }
         }
     }
@@ -607,7 +624,10 @@ class MainActivity : ComponentActivity() {
     @SuppressLint("MissingPermission")
     private fun connectBleEmulstickDeviceByAddress(
         address: String,
-        onSuccess: (MouseController, KeyboardController, String) -> Unit
+        onSuccess: (MouseController, KeyboardController, String) -> Unit,
+        onFailure: (String) -> Unit = { reason ->
+            ConnectionLogger.log("❌ BLE 自動連線失敗: $reason", ConnectionLogger.LogLevel.ERROR)
+        }
     ) {
         lifecycleScope.launch {
             try {
@@ -649,13 +669,16 @@ class MainActivity : ComponentActivity() {
                     }
                     is com.unifiedremote.evo.network.ble.BleConnectionState.Error -> {
                         ConnectionLogger.log("❌ BLE 連線錯誤: ${connState.message}", ConnectionLogger.LogLevel.ERROR)
+                        onFailure(connState.message)
                     }
                     else -> {
                         ConnectionLogger.log("❌ BLE 連線失敗：未知狀態", ConnectionLogger.LogLevel.ERROR)
+                        onFailure("連線狀態未知")
                     }
                 }
             } catch (e: Exception) {
                 ConnectionLogger.log("❌ BLE 連線失敗: ${e.message}", ConnectionLogger.LogLevel.ERROR)
+                onFailure(e.message ?: "未知錯誤")
             }
         }
     }
@@ -666,13 +689,14 @@ class MainActivity : ComponentActivity() {
     @SuppressLint("MissingPermission")
     private fun connectSaved(
         device: SavedDevice,
-        onSuccess: (MouseController, KeyboardController, String) -> Unit
+        onSuccess: (MouseController, KeyboardController, String) -> Unit,
+        onFailure: (String) -> Unit = {}
     ) {
         when (device.type) {
             com.unifiedremote.evo.network.ConnectionType.TCP -> {
                 val host = device.host ?: return
                 val port = device.port ?: 9512
-                connectTcp(host, port, onSuccess)
+                connectTcp(host, port, onSuccess, onFailure)
             }
             com.unifiedremote.evo.network.ConnectionType.BLUETOOTH -> {
                 val address = device.bluetoothAddress ?: return
@@ -680,7 +704,7 @@ class MainActivity : ComponentActivity() {
                 val adapter = android.bluetooth.BluetoothAdapter.getDefaultAdapter()
                 val bluetoothDevice = adapter?.getRemoteDevice(address)
                 if (bluetoothDevice != null) {
-                    connectBluetooth(bluetoothDevice, onSuccess)
+                    connectBluetooth(bluetoothDevice, onSuccess, onFailure)
                 } else {
                     ConnectionLogger.log("找不到藍牙裝置: $address", ConnectionLogger.LogLevel.ERROR)
                 }
@@ -688,7 +712,7 @@ class MainActivity : ComponentActivity() {
             com.unifiedremote.evo.network.ConnectionType.BLE_EMULSTICK -> {
                 // ✅ 已儲存的 BLE 裝置，直接用 MAC 地址連線
                 val address = device.bluetoothAddress ?: return
-                connectBleEmulstickDeviceByAddress(address, onSuccess)
+                connectBleEmulstickDeviceByAddress(address, onSuccess, onFailure)
             }
         }
     }
