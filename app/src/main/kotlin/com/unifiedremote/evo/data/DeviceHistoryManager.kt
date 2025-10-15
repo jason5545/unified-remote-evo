@@ -7,6 +7,7 @@ import com.google.gson.Gson
 import com.google.gson.JsonObject
 import com.google.gson.JsonParser
 import com.google.gson.reflect.TypeToken
+import com.unifiedremote.evo.network.ConnectionLogger
 import com.unifiedremote.evo.network.ConnectionType
 import java.util.LinkedHashMap
 import java.util.Locale
@@ -47,16 +48,29 @@ class DeviceHistoryManager(context: Context) {
     fun getLastDevice(): SavedDevice? {
         val devices = getAllDevices()
         if (devices.isEmpty()) {
+            ConnectionLogger.log("DeviceHistory: getLastDevice -> no devices", ConnectionLogger.LogLevel.DEBUG)
             return null
         }
 
         val storedId = prefs.getString(KEY_LAST_DEVICE_ID, null)
+        ConnectionLogger.log(
+            "DeviceHistory: storedId=$storedId, candidates=${devices.joinToString { it.id }}",
+            ConnectionLogger.LogLevel.DEBUG
+        )
         val exactMatch = devices.firstOrNull { it.id == storedId }
         if (exactMatch != null) {
+            ConnectionLogger.log(
+                "DeviceHistory: using stored match ${exactMatch.id}",
+                ConnectionLogger.LogLevel.DEBUG
+            )
             return exactMatch
         }
 
         val fallback = devices.first()
+        ConnectionLogger.log(
+            "DeviceHistory: fallback to ${fallback.id}",
+            ConnectionLogger.LogLevel.DEBUG
+        )
         prefs.edit().putString(KEY_LAST_DEVICE_ID, fallback.id).apply()
         return fallback
     }
@@ -104,6 +118,10 @@ class DeviceHistoryManager(context: Context) {
 
         editor.putString(KEY_LAST_DEVICE_ID, resolvedLastId)
         editor.apply()
+        ConnectionLogger.log(
+            "DeviceHistory: persistDevices -> saved ${normalized.size} entries, lastId=$resolvedLastId",
+            ConnectionLogger.LogLevel.DEBUG
+        )
     }
 
     private fun sanitizeDevices(devices: List<SavedDevice>?): List<SavedDevice> {
@@ -126,7 +144,7 @@ class DeviceHistoryManager(context: Context) {
     }
 
     private fun sanitizeDevice(device: SavedDevice): SavedDevice? {
-        val safeLastConnected = if (device.lastConnected > 0) device.lastConnected else System.currentTimeMillis()
+        val safeLastConnected = if (device.lastConnected > 0) device.lastConnected else 0L
 
         return when (device.type) {
             ConnectionType.TCP -> {
@@ -193,7 +211,7 @@ class DeviceHistoryManager(context: Context) {
         val lastConnected = obj.optLong("lastConnected")
             ?: obj.optLong("lastSeen")
             ?: 0L
-        val safeLastConnected = if (lastConnected > 0) lastConnected else System.currentTimeMillis()
+        val safeLastConnected = if (lastConnected > 0) lastConnected else 0L
 
         val name = obj.optString("name") ?: obj.optString("deviceName") ?: ""
         val idFromJson = obj.optString("id") ?: obj.optString("deviceId")
