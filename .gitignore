@@ -128,6 +128,7 @@ test_*.py
 *_test_report*.txt
 requirements_test.txt
 
-# Documentation files (除了 README.md)
+# Documentation files (除了 README.md 和 README_EN.md)
 *.md
 !README.md
+!README_EN.md
