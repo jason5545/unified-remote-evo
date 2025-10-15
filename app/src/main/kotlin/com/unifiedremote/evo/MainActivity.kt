@@ -118,25 +118,62 @@ class MainActivity : ComponentActivity() {
                 savedDevices = deviceHistoryManager.getAllDevices()
             }
 
-            // ✅ 自動連線邏輯：待背景服務綁定後執行一次
-            LaunchedEffect(serviceBound, shouldAutoConnect) {
-                if (shouldAutoConnect && serviceBound) {
-                    shouldAutoConnect = false  // 只自動連線一次
-                    val lastDevice = deviceHistoryManager.getLastDevice()
-                    if (lastDevice != null) {
-                        ConnectionLogger.log("自動連線至: ${lastDevice.name}", ConnectionLogger.LogLevel.INFO)
-                        delay(500)  // 短暫延遲確保 UI 已載入並且服務可用
-                        connectSaved(
-                            device = lastDevice,
-                            onSuccess = { mouse, keyboard, deviceId ->
-                                mouseController = mouse
-                                keyboardController = keyboard
-                                currentDeviceId = deviceId
-                                savedDevices = deviceHistoryManager.getAllDevices()
-                            }
-                        )
+            // ✅ 自動連線邏輯：檢查背景服務與權限就緒後再執行
+            LaunchedEffect(
+                serviceBound,
+                shouldAutoConnect,
+                bluetoothPermissionGranted,
+                bleUiState.permissionsGranted,
+                bleUiState.isBluetoothOn
+            ) {
+                if (!shouldAutoConnect || !serviceBound) {
+                    return@LaunchedEffect
+                }
+
+                ConnectionLogger.log(
+                    "自動連線檢查：serviceBound=$serviceBound, shouldAutoConnect=$shouldAutoConnect",
+                    ConnectionLogger.LogLevel.DEBUG
+                )
+
+                val lastDevice = deviceHistoryManager.getLastDevice()
+                if (lastDevice == null) {
+                    ConnectionLogger.log("自動連線：目前沒有可用的儲存裝置", ConnectionLogger.LogLevel.DEBUG)
+                    return@LaunchedEffect
+                }
+
+                ConnectionLogger.log(
+                    "自動連線目標：${lastDevice.name} (${lastDevice.type})",
+                    ConnectionLogger.LogLevel.DEBUG
+                )
+
+                val requiresBluetooth = lastDevice.type != com.unifiedremote.evo.network.ConnectionType.TCP
+                if (requiresBluetooth && !bluetoothPermissionGranted) {
+                    ConnectionLogger.log("自動連線延後：尚未取得藍牙權限", ConnectionLogger.LogLevel.INFO)
+                    return@LaunchedEffect
+                }
+
+                if (lastDevice.type == com.unifiedremote.evo.network.ConnectionType.BLE_EMULSTICK) {
+                    if (!bleUiState.permissionsGranted || !bleUiState.isBluetoothOn) {
+                        ConnectionLogger.log("自動連線延後：等待 BLE 權限或藍牙開啟", ConnectionLogger.LogLevel.INFO)
+                        return@LaunchedEffect
                     }
                 }
+
+                shouldAutoConnect = false  // 確保只嘗試自動連線一次
+                ConnectionLogger.log(
+                    "自動連線執行：${lastDevice.name} (${lastDevice.type})",
+                    ConnectionLogger.LogLevel.INFO
+                )
+                delay(500)  // 短暫延遲確保 UI 已載入並且服務可用
+                connectSaved(
+                    device = lastDevice,
+                    onSuccess = { mouse, keyboard, deviceId ->
+                        mouseController = mouse
+                        keyboardController = keyboard
+                        currentDeviceId = deviceId
+                        savedDevices = deviceHistoryManager.getAllDevices()
+                    }
+                )
             }
 
             val themeMode = themeManager.themeMode
