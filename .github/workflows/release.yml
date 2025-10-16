@@ -124,7 +124,7 @@ jobs:
           echo "🚀 開始編譯..."
           START_TIME=$(date +%s)
 
-          ./gradlew assembleRelease --stacktrace
+          ./gradlew assembleRelease --console=plain --stacktrace
 
           END_TIME=$(date +%s)
           DURATION=$((END_TIME - START_TIME))
