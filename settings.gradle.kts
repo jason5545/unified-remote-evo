@@ -16,4 +16,3 @@ dependencyResolutionManagement {
 
 rootProject.name = "UnifiedRemoteLite"
 include(":app")
-include(":ble-diagnostics")
