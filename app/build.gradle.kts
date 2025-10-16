@@ -47,8 +47,11 @@ android {
 
             // 啟用程式碼縮減（R8）
             isMinifyEnabled = true
-            // 啟用資源縮減
-            isShrinkResources = true
+
+            // 停用資源縮減（GitHub Actions 記憶體限制）
+            // 小型 APP 影響不大，優先保證編譯成功
+            isShrinkResources = false
+
             // 使用最佳化的 ProGuard 設定
             proguardFiles(
                 getDefaultProguardFile("proguard-android-optimize.txt"),
