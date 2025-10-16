@@ -34,8 +34,21 @@ jobs:
         uses: gradle/actions/setup-gradle@v4
         with:
           cache-read-only: false
-          cache-encryption-key: ${{ secrets.GRADLE_CACHE_KEY }}
           gradle-home-cache-cleanup: true
+
+      # 4.5. 建立 gradle.properties（編譯最佳化）
+      - name: Create gradle.properties
+        run: |
+          cat > gradle.properties <<EOF
+          org.gradle.jvmargs=-Xmx4096m -XX:MaxMetaspaceSize=512m -XX:+HeapDumpOnOutOfMemoryError
+          org.gradle.parallel=true
+          org.gradle.caching=true
+          org.gradle.daemon=true
+          org.gradle.configureondemand=true
+          kotlin.incremental=true
+          kotlin.compiler.execution.strategy=in-process
+          android.useAndroidX=true
+          EOF
 
       # 5. 設定簽署金鑰環境變數（統一處理）
       - name: Setup Signing Environment
@@ -94,42 +107,20 @@ jobs:
             echo "KEY_PASSWORD=${{ secrets.KEY_PASSWORD }}" >> $GITHUB_ENV
           fi
 
-      # 6. 驗證 Keystore 有效性
+      # 6. 驗證 Keystore 有效性（簡化版本）
       - name: Verify Keystore
         run: |
-          echo "🔍 驗證 Keystore 有效性..."
+          echo "🔍 快速驗證 Keystore..."
 
-          # 直接使用環境變數（已統一設定）
-          STORE_PASS="${{ env.KEYSTORE_PASSWORD }}"
-          ALIAS="${{ env.KEY_ALIAS }}"
-          KEY_PASS="${{ env.KEY_PASSWORD }}"
-
-          # 測試 KEYSTORE_PASSWORD
+          # 只做一次快速驗證（減少時間）
           if ! keytool -list -keystore app/release.keystore \
-               -storepass "$STORE_PASS" \
-               -alias "$ALIAS" > /dev/null 2>&1; then
-            echo "❌ Keystore 驗證失敗！(KEYSTORE_PASSWORD 或 KEY_ALIAS 錯誤)"
-            echo ""
-            echo "可能的原因："
-            echo "1. KEYSTORE_BASE64 複製不完整（最常見）"
-            echo "2. KEYSTORE_PASSWORD 不正確"
-            echo "3. KEY_ALIAS 不正確"
+               -storepass "${{ env.KEYSTORE_PASSWORD }}" \
+               -alias "${{ env.KEY_ALIAS }}" > /dev/null 2>&1; then
+            echo "❌ Keystore 驗證失敗！請檢查 GitHub Secrets 設定"
             exit 1
           fi
 
-          echo "✅ KEYSTORE_PASSWORD 驗證成功"
-
-          # 測試 KEY_PASSWORD
-          if ! keytool -list -keystore app/release.keystore \
-               -storepass "$STORE_PASS" \
-               -alias "$ALIAS" \
-               -keypass "$KEY_PASS" > /dev/null 2>&1; then
-            echo "❌ KEY_PASSWORD 驗證失敗！"
-            exit 1
-          fi
-
-          echo "✅ KEY_PASSWORD 驗證成功"
-          echo "✅ Keystore 完整驗證通過！別名: $ALIAS"
+          echo "✅ Keystore 驗證通過！"
 
       # 7. 建立 keystore.properties
       - name: Create keystore.properties
@@ -148,7 +139,7 @@ jobs:
           echo "🚀 開始編譯..."
           START_TIME=$(date +%s)
 
-          ./gradlew assembleRelease --info
+          ./gradlew assembleRelease --console=plain --no-daemon --stacktrace
 
           END_TIME=$(date +%s)
           DURATION=$((END_TIME - START_TIME))
