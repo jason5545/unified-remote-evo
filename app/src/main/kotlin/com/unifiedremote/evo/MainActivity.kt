@@ -648,9 +648,30 @@ class MainActivity : ComponentActivity() {
                     is com.unifiedremote.evo.network.ble.BleConnectionState.Connected -> {
                         ConnectionLogger.log("✅ 已連線到 ${connState.deviceName} (${connState.deviceAddress})", ConnectionLogger.LogLevel.INFO)
 
+                        // ✅ 智慧名稱處理：
+                        // 1. 如果新名稱是「未知裝置」，保留已儲存的正確名稱
+                        // 2. 如果已儲存的是「未知裝置」，更新為新的正確名稱（自動修復）
+                        val existingDevice = deviceHistoryManager.getAllDevices()
+                            .firstOrNull { it.bluetoothAddress == connState.deviceAddress }
+
+                        val deviceName = when {
+                            // 情況 1：新名稱是「未知裝置」，但已有正確名稱 → 保留舊名稱
+                            connState.deviceName == "未知裝置" && existingDevice != null && existingDevice.name != "未知裝置" -> {
+                                ConnectionLogger.log("保留已儲存的裝置名稱：${existingDevice.name}", ConnectionLogger.LogLevel.DEBUG)
+                                existingDevice.name
+                            }
+                            // 情況 2：已儲存的是「未知裝置」，但新名稱正確 → 更新為新名稱（自動修復）
+                            existingDevice?.name == "未知裝置" && connState.deviceName != "未知裝置" -> {
+                                ConnectionLogger.log("✅ 自動修復：將「未知裝置」更新為 ${connState.deviceName}", ConnectionLogger.LogLevel.INFO)
+                                connState.deviceName
+                            }
+                            // 情況 3：使用新名稱
+                            else -> connState.deviceName
+                        }
+
                         // 儲存裝置至歷史
                         val savedDevice = SavedDevice.createBleEmulstick(
-                            deviceName = connState.deviceName,
+                            deviceName = deviceName,
                             address = connState.deviceAddress
                         )
                         deviceHistoryManager.saveDevice(savedDevice)

@@ -272,6 +272,10 @@ class BleManager(private val context: Context) {
     private val _ledStatus = MutableStateFlow(LedStatus())
     val ledStatus: StateFlow<LedStatus> = _ledStatus.asStateFlow()
 
+    // ✅ 裝置名稱快取（MAC 地址 → 裝置名稱）
+    // 用於保存掃描時取得的裝置名稱，避免直接連線時名稱遺失
+    private val deviceNameCache = mutableMapOf<String, String>()
+
 
     // ============ 藍牙元件 ============
 
@@ -577,6 +581,9 @@ class BleManager(private val context: Context) {
                 ConnectionLogger.LogLevel.INFO
             )
 
+            // ✅ 將裝置名稱加入快取（避免直接連線時名稱遺失）
+            deviceNameCache[deviceAddress] = deviceName
+
             // ✅ 使用工廠方法建立 SavedDevice
             val savedDevice = com.unifiedremote.evo.data.SavedDevice.createBleEmulstick(
                 deviceName = deviceName,
@@ -657,8 +664,13 @@ class BleManager(private val context: Context) {
      * 連線到指定裝置（內部方法）
      */
     private fun connectToDevice(device: BluetoothDevice) {
-        _connectionState.value = BleConnectionState.Connecting(device.name ?: "未知裝置")
-        Log.d(TAG, "連線到裝置: ${device.name} (${device.address})")
+        // ✅ 優先使用快取的裝置名稱
+        val deviceName = device.name
+            ?: deviceNameCache[device.address]
+            ?: "未知裝置"
+
+        _connectionState.value = BleConnectionState.Connecting(deviceName)
+        Log.d(TAG, "連線到裝置: $deviceName (${device.address})")
 
         cancelConnectionTimeout()
         bluetoothGatt = device.connectGatt(
@@ -2629,8 +2641,13 @@ class BleManager(private val context: Context) {
         cancelConnectionTimeout()
         resetConnectRetryState()
         isAuthenticationComplete = true
-        val deviceName = gatt.device.name ?: "未知裝置"
         val deviceAddress = gatt.device.address
+
+        // ✅ 優先使用快取的裝置名稱（從掃描時取得），避免直接連線時名稱為 null
+        val deviceName = gatt.device.name
+            ?: deviceNameCache[deviceAddress]
+            ?: "未知裝置"
+
         _connectionState.value = BleConnectionState.Connected(deviceName, deviceAddress)
         Log.d(TAG, "🎉 身份驗證完成，BLE 連線建立完成: $deviceName")
         ConnectionLogger.log("🎉 身份驗證完成，BLE 連線建立完成: $deviceName", ConnectionLogger.LogLevel.INFO)
