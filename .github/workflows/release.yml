@@ -40,13 +40,11 @@ jobs:
       - name: Create gradle.properties
         run: |
           cat > gradle.properties <<EOF
-          org.gradle.jvmargs=-Xmx4096m -XX:MaxMetaspaceSize=512m -XX:+HeapDumpOnOutOfMemoryError
+          org.gradle.jvmargs=-Xmx2048m -XX:MaxMetaspaceSize=512m -XX:+UseG1GC
           org.gradle.parallel=true
           org.gradle.caching=true
-          org.gradle.daemon=true
           org.gradle.configureondemand=true
           kotlin.incremental=true
-          kotlin.compiler.execution.strategy=in-process
           android.useAndroidX=true
           EOF
 
