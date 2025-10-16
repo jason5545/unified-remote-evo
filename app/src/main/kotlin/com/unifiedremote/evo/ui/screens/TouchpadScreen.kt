@@ -12,7 +12,7 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.Menu
+import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -557,7 +557,10 @@ fun MenuBottomSheetContent(
                 horizontalArrangement = Arrangement.Start,
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                Text("🔄", style = MaterialTheme.typography.titleLarge)
+                Icon(
+                    imageVector = Icons.Filled.SwapHoriz,
+                    contentDescription = "切換裝置"
+                )
                 Spacer(modifier = Modifier.width(16.dp))
                 Text("切換裝置", style = MaterialTheme.typography.bodyLarge)
             }
@@ -577,7 +580,10 @@ fun MenuBottomSheetContent(
                 horizontalArrangement = Arrangement.Start,
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                Text("⚙️", style = MaterialTheme.typography.titleLarge)
+                Icon(
+                    imageVector = Icons.Filled.Settings,
+                    contentDescription = "設定"
+                )
                 Spacer(modifier = Modifier.width(16.dp))
                 Text("設定", style = MaterialTheme.typography.bodyLarge)
             }
@@ -597,7 +603,10 @@ fun MenuBottomSheetContent(
                 horizontalArrangement = Arrangement.Start,
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                Text("📊", style = MaterialTheme.typography.titleLarge)
+                Icon(
+                    imageVector = Icons.Filled.BugReport,
+                    contentDescription = "除錯"
+                )
                 Spacer(modifier = Modifier.width(16.dp))
                 Text("除錯", style = MaterialTheme.typography.bodyLarge)
             }
@@ -620,7 +629,10 @@ fun MenuBottomSheetContent(
                 horizontalArrangement = Arrangement.Start,
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                Text("❌", style = MaterialTheme.typography.titleLarge)
+                Icon(
+                    imageVector = Icons.Filled.PowerOff,
+                    contentDescription = "斷線"
+                )
                 Spacer(modifier = Modifier.width(16.dp))
                 Text("斷線", style = MaterialTheme.typography.bodyLarge)
             }
@@ -644,7 +656,10 @@ fun MenuBottomSheetContent(
                 horizontalArrangement = Arrangement.Start,
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                Text("⚡", style = MaterialTheme.typography.titleLarge)
+                Icon(
+                    imageVector = Icons.Filled.FlashOn,
+                    contentDescription = "快捷鍵"
+                )
                 Spacer(modifier = Modifier.width(16.dp))
                 Text("快捷鍵", style = MaterialTheme.typography.bodyLarge)
             }
@@ -664,7 +679,10 @@ fun MenuBottomSheetContent(
                 horizontalArrangement = Arrangement.Start,
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                Text("📝", style = MaterialTheme.typography.titleLarge)
+                Icon(
+                    imageVector = Icons.Filled.Keyboard,
+                    contentDescription = "文字輸入"
+                )
                 Spacer(modifier = Modifier.width(16.dp))
                 Text("文字輸入", style = MaterialTheme.typography.bodyLarge)
             }
@@ -695,7 +713,10 @@ fun MenuBottomSheetContent(
                     Row(
                         verticalAlignment = Alignment.CenterVertically
                     ) {
-                        Text("🎮", style = MaterialTheme.typography.titleLarge)
+                        Icon(
+                            imageVector = Icons.Filled.SportsEsports,
+                            contentDescription = "遊戲手把"
+                        )
                         Spacer(modifier = Modifier.width(16.dp))
                         Column {
                             Text(
@@ -748,17 +769,17 @@ fun TopControlBar(
             verticalAlignment = Alignment.CenterVertically
         ) {
             Row(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
-                TextButton(onClick = onSwitchDevice) {
-                    Text("🔄", style = MaterialTheme.typography.titleMedium)
+                IconButton(onClick = onSwitchDevice) {
+                    Icon(Icons.Filled.SwapHoriz, "切換裝置")
                 }
-                TextButton(onClick = onSettings) {
-                    Text("⚙️")
+                IconButton(onClick = onSettings) {
+                    Icon(Icons.Filled.Settings, "設定")
                 }
-                TextButton(onClick = onDebug) {
-                    Text("📊")
+                IconButton(onClick = onDebug) {
+                    Icon(Icons.Filled.BugReport, "除錯")
                 }
-                TextButton(onClick = onDisconnect) {
-                    Text("❌")
+                IconButton(onClick = onDisconnect) {
+                    Icon(Icons.Filled.PowerOff, "斷線")
                 }
             }
 
@@ -769,9 +790,10 @@ fun TopControlBar(
                     horizontalArrangement = Arrangement.spacedBy(4.dp),
                     modifier = Modifier.padding(horizontal = 8.dp)
                 ) {
-                    Text(
-                        text = "遊戲手把",
-                        style = MaterialTheme.typography.bodySmall
+                    Icon(
+                        imageVector = Icons.Filled.SportsEsports,
+                        contentDescription = "遊戲手把",
+                        modifier = Modifier.size(16.dp)
                     )
                     Switch(
                         checked = isXInputMode,
@@ -782,11 +804,11 @@ fun TopControlBar(
             }
 
             Row(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
-                TextButton(onClick = onShortcuts) {
-                    Text("⚡")
+                IconButton(onClick = onShortcuts) {
+                    Icon(Icons.Filled.FlashOn, "快捷鍵")
                 }
-                TextButton(onClick = onText) {
-                    Text("📝")
+                IconButton(onClick = onText) {
+                    Icon(Icons.Filled.Keyboard, "文字輸入")
                 }
             }
         }
@@ -1480,13 +1502,13 @@ fun HardwareIndicator(
 ) {
     val (icon, text, color) = when (hardwareType) {
         com.unifiedremote.evo.network.ble.EmulStickHardware.ESP32S3_EVO ->
-            Triple("🚀", "Evo 高速模式", androidx.compose.ui.graphics.Color.Green)
+            Triple(Icons.Filled.Rocket, "Evo 高速模式", androidx.compose.ui.graphics.Color.Green)
         com.unifiedremote.evo.network.ble.EmulStickHardware.ORIGINAL_TI ->
-            Triple("📡", "原廠 TI", androidx.compose.ui.graphics.Color.Blue)
+            Triple(Icons.Filled.Router, "原廠 TI", androidx.compose.ui.graphics.Color.Blue)
         com.unifiedremote.evo.network.ble.EmulStickHardware.ORIGINAL_WCH ->
-            Triple("📡", "原廠 WCH", androidx.compose.ui.graphics.Color.Blue)
+            Triple(Icons.Filled.Router, "原廠 WCH", androidx.compose.ui.graphics.Color.Blue)
         com.unifiedremote.evo.network.ble.EmulStickHardware.UNKNOWN ->
-            Triple("⚠️", "相容模式", androidx.compose.ui.graphics.Color.Gray)
+            Triple(Icons.Filled.Warning, "相容模式", androidx.compose.ui.graphics.Color.Gray)
     }
 
     Surface(
@@ -1500,9 +1522,11 @@ fun HardwareIndicator(
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.Center
         ) {
-            Text(
-                text = icon,
-                style = MaterialTheme.typography.titleMedium
+            Icon(
+                imageVector = icon,
+                contentDescription = text,
+                tint = color,
+                modifier = Modifier.size(20.dp)
             )
             Spacer(modifier = Modifier.width(8.dp))
             Text(
@@ -1597,17 +1621,36 @@ fun DeviceSwitcherDialog(
                                 verticalAlignment = Alignment.CenterVertically
                             ) {
                                 // 裝置類型圖示
-                                val typeIcon = when (device.type) {
-                                    com.unifiedremote.evo.network.ConnectionType.TCP -> "📶"
-                                    com.unifiedremote.evo.network.ConnectionType.BLUETOOTH -> "📡"
-                                    com.unifiedremote.evo.network.ConnectionType.BLE_EMULSTICK -> "🔌"
+                                Box(
+                                    modifier = Modifier
+                                        .size(40.dp)
+                                        .padding(end = 16.dp),
+                                    contentAlignment = Alignment.Center
+                                ) {
+                                    when (device.type) {
+                                        com.unifiedremote.evo.network.ConnectionType.TCP -> {
+                                            Icon(
+                                                imageVector = Icons.Filled.Wifi,
+                                                contentDescription = "WiFi/TCP",
+                                                modifier = Modifier.size(32.dp)
+                                            )
+                                        }
+                                        com.unifiedremote.evo.network.ConnectionType.BLUETOOTH -> {
+                                            Icon(
+                                                imageVector = Icons.Filled.Bluetooth,
+                                                contentDescription = "Bluetooth",
+                                                modifier = Modifier.size(32.dp)
+                                            )
+                                        }
+                                        com.unifiedremote.evo.network.ConnectionType.BLE_EMULSTICK -> {
+                                            Icon(
+                                                imageVector = Icons.Filled.Usb,
+                                                contentDescription = "USB Dongle",
+                                                modifier = Modifier.size(32.dp)
+                                            )
+                                        }
+                                    }
                                 }
-
-                                Text(
-                                    text = typeIcon,
-                                    style = MaterialTheme.typography.headlineMedium,
-                                    modifier = Modifier.padding(end = 16.dp)
-                                )
 
                                 // 裝置資訊
                                 Column(modifier = Modifier.weight(1f)) {
@@ -1623,10 +1666,11 @@ fun DeviceSwitcherDialog(
                                         )
                                         if (isCurrentDevice) {
                                             Spacer(modifier = Modifier.width(8.dp))
-                                            Text(
-                                                text = "✓",
-                                                style = MaterialTheme.typography.titleMedium,
-                                                color = MaterialTheme.colorScheme.primary
+                                            Icon(
+                                                imageVector = Icons.Filled.Check,
+                                                contentDescription = "當前裝置",
+                                                tint = MaterialTheme.colorScheme.primary,
+                                                modifier = Modifier.size(20.dp)
                                             )
                                         }
                                     }
