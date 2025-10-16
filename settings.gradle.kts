@@ -14,5 +14,5 @@ dependencyResolutionManagement {
     }
 }
 
-rootProject.name = "UnifiedRemoteLite"
+rootProject.name = "UnifiedRemoteEvo"
 include(":app")
