@@ -34,19 +34,6 @@ jobs:
         uses: gradle/actions/setup-gradle@v4
         with:
           cache-read-only: false
-          dependency-graph: generate-and-submit
-
-      # 4.5. 建立 gradle.properties（編譯最佳化）
-      - name: Create gradle.properties
-        run: |
-          cat > gradle.properties <<EOF
-          org.gradle.jvmargs=-Xmx2048m -XX:MaxMetaspaceSize=512m -XX:+UseG1GC
-          org.gradle.parallel=true
-          org.gradle.caching=true
-          org.gradle.configureondemand=true
-          kotlin.incremental=true
-          android.useAndroidX=true
-          EOF
 
       # 5. 設定簽署金鑰環境變數（統一處理）
       - name: Setup Signing Environment
@@ -137,7 +124,7 @@ jobs:
           echo "🚀 開始編譯..."
           START_TIME=$(date +%s)
 
-          ./gradlew assembleRelease --console=plain --no-daemon --stacktrace
+          ./gradlew assembleRelease --stacktrace
 
           END_TIME=$(date +%s)
           DURATION=$((END_TIME - START_TIME))
