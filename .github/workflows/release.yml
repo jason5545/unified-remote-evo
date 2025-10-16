@@ -25,7 +25,15 @@ jobs:
           java-version: '17'
           distribution: 'temurin'
 
-      # 3. 增加 swapfile（解決 R8 記憶體不足）
+      # 3. 設定 Gradle（啟用快取，v4 新參數）
+      - name: Setup Gradle
+        uses: gradle/actions/setup-gradle@v4
+        with:
+          cache-read-only: false
+          # v4 預設啟用 cache-cleanup，build 失敗時也執行清理
+          cache-cleanup: always
+
+      # 4. 增加 swapfile（解決 R8 記憶體不足）
       - name: Increase swapfile
         run: |
           echo "📊 檢查現有記憶體和 swap："
@@ -44,11 +52,11 @@ jobs:
           echo "✅ 更新後的記憶體狀態："
           free -h
 
-      # 4. 賦予 Gradle 執行權限
+      # 5. 賦予 Gradle 執行權限
       - name: Grant execute permission for gradlew
         run: chmod +x gradlew
 
-      # 5. 設定簽署金鑰環境變數（統一處理）
+      # 6. 設定簽署金鑰環境變數（統一處理）
       - name: Setup Signing Environment
         run: |
           if [ -z "${{ secrets.KEYSTORE_BASE64 }}" ]; then
@@ -105,7 +113,7 @@ jobs:
             echo "KEY_PASSWORD=${{ secrets.KEY_PASSWORD }}" >> $GITHUB_ENV
           fi
 
-      # 6. 驗證 Keystore 有效性（簡化版本）
+      # 7. 驗證 Keystore 有效性（簡化版本）
       - name: Verify Keystore
         run: |
           echo "🔍 快速驗證 Keystore..."
@@ -120,7 +128,7 @@ jobs:
 
           echo "✅ Keystore 驗證通過！"
 
-      # 7. 建立 keystore.properties
+      # 8. 建立 keystore.properties
       - name: Create keystore.properties
         run: |
           # 直接使用環境變數（無需再判斷來源）
@@ -131,7 +139,7 @@ jobs:
           keyPassword=${{ env.KEY_PASSWORD }}
           EOF
 
-      # 8. 編譯 Release APK（顯示編譯時間）
+      # 9. 編譯 Release APK（顯示編譯時間）
       - name: Build Release APK
         run: |
           echo "🚀 開始編譯..."
@@ -144,7 +152,7 @@ jobs:
           echo ""
           echo "✅ 編譯完成！耗時: ${DURATION} 秒"
 
-      # 9. 取得版本號（從 tag）
+      # 10. 取得版本號（從 tag）
       - name: Get version
         id: version
         run: |
@@ -154,20 +162,20 @@ jobs:
             echo "version=dev-$(date +%Y%m%d-%H%M%S)" >> $GITHUB_OUTPUT
           fi
 
-      # 10. 重新命名 APK
+      # 11. 重新命名 APK
       - name: Rename APK
         run: |
           mv app/build/outputs/apk/release/app-release.apk \
              unified-remote-evo-${{ steps.version.outputs.version }}.apk
 
-      # 11. 上傳 APK 作為 Artifact
+      # 12. 上傳 APK 作為 Artifact
       - name: Upload APK
         uses: actions/upload-artifact@v4
         with:
           name: unified-remote-evo-${{ steps.version.outputs.version }}
           path: unified-remote-evo-${{ steps.version.outputs.version }}.apk
 
-      # 12. 建立 GitHub Release（僅當推送 tag 時）
+      # 13. 建立 GitHub Release（僅當推送 tag 時）
       - name: Create Release
         if: startsWith(github.ref, 'refs/tags/')
         uses: softprops/action-gh-release@v1
@@ -179,7 +187,7 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
-      # 13. 清理簽署金鑰
+      # 14. 清理簽署金鑰
       - name: Cleanup
         if: always()
         run: |
