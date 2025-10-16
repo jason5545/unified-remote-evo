@@ -25,12 +25,16 @@ jobs:
           java-version: '17'
           distribution: 'temurin'
 
-      # 3. 賦予 Gradle 執行權限
-      - name: Grant execute permission for gradlew
-        run: chmod +x gradlew
+      # 3. 設定 Gradle（自動快取）
+      - name: Setup Gradle
+        uses: gradle/actions/setup-gradle@v4
+        with:
+          cache-read-only: false
+          cache-encryption-key: ${{ secrets.GRADLE_CACHE_KEY }}
+          gradle-home-cache-cleanup: true
 
-      # 4. 檢查並產生簽署金鑰（如果不存在）
-      - name: Setup Signing Key
+      # 4. 設定簽署金鑰環境變數（統一處理）
+      - name: Setup Signing Environment
         run: |
           if [ -z "${{ secrets.KEYSTORE_BASE64 }}" ]; then
             echo "⚠️ 未找到 KEYSTORE_BASE64，自動產生新的簽署金鑰..."
@@ -70,17 +74,20 @@ jobs:
             echo ""
             echo "⚠️ 請將以上 4 個值設定到 GitHub Secrets 中！"
             echo "設定路徑：Settings → Secrets and variables → Actions → New repository secret"
-            echo ""
-            echo "設定完成後，請重新執行此 workflow。"
 
-            # 儲存到環境變數供後續步驟使用
+            # 儲存到環境變數
             echo "KEYSTORE_PASSWORD=$STORE_PASS" >> $GITHUB_ENV
             echo "KEY_ALIAS=$ALIAS" >> $GITHUB_ENV
             echo "KEY_PASSWORD=$KEY_PASS" >> $GITHUB_ENV
           else
             echo "✅ 找到現有的簽署金鑰，使用現有設定"
-            # 還原 Keystore（直接從 secrets 讀取，不經過環境變數）
+            # 還原 Keystore
             echo "${{ secrets.KEYSTORE_BASE64 }}" | base64 -d > app/release.keystore
+
+            # 統一儲存到環境變數（後續步驟只需讀取 env）
+            echo "KEYSTORE_PASSWORD=${{ secrets.KEYSTORE_PASSWORD }}" >> $GITHUB_ENV
+            echo "KEY_ALIAS=${{ secrets.KEY_ALIAS }}" >> $GITHUB_ENV
+            echo "KEY_PASSWORD=${{ secrets.KEY_PASSWORD }}" >> $GITHUB_ENV
           fi
 
       # 5. 驗證 Keystore 有效性
@@ -88,20 +95,12 @@ jobs:
         run: |
           echo "🔍 驗證 Keystore 有效性..."
 
-          # 決定使用自動產生的還是 Secrets 的密碼
-          if [ -n "${{ env.KEYSTORE_PASSWORD }}" ]; then
-            # 使用自動產生的密碼
-            STORE_PASS="${{ env.KEYSTORE_PASSWORD }}"
-            ALIAS="${{ env.KEY_ALIAS }}"
-            KEY_PASS="${{ env.KEY_PASSWORD }}"
-          else
-            # 使用 Secrets 的密碼
-            STORE_PASS="${{ secrets.KEYSTORE_PASSWORD }}"
-            ALIAS="${{ secrets.KEY_ALIAS }}"
-            KEY_PASS="${{ secrets.KEY_PASSWORD }}"
-          fi
+          # 直接使用環境變數（已統一設定）
+          STORE_PASS="${{ env.KEYSTORE_PASSWORD }}"
+          ALIAS="${{ env.KEY_ALIAS }}"
+          KEY_PASS="${{ env.KEY_PASSWORD }}"
 
-          # 測試 KEYSTORE_PASSWORD（讀取 keystore）
+          # 測試 KEYSTORE_PASSWORD
           if ! keytool -list -keystore app/release.keystore \
                -storepass "$STORE_PASS" \
                -alias "$ALIAS" > /dev/null 2>&1; then
@@ -111,61 +110,46 @@ jobs:
             echo "1. KEYSTORE_BASE64 複製不完整（最常見）"
             echo "2. KEYSTORE_PASSWORD 不正確"
             echo "3. KEY_ALIAS 不正確"
-            echo ""
-            echo "建議："
-            echo "- 刪除所有 Secrets (KEYSTORE_BASE64, KEYSTORE_PASSWORD, KEY_ALIAS, KEY_PASSWORD)"
-            echo "- 重新執行 workflow 讓系統自動產生"
-            echo "- 從日誌複製完整內容（包括結尾的 = 符號）"
             exit 1
           fi
 
-          echo "✅ Step 1: KEYSTORE_PASSWORD 驗證成功"
+          echo "✅ KEYSTORE_PASSWORD 驗證成功"
 
-          # 測試 KEY_PASSWORD（取得私鑰，這是簽署 APK 時會用到的）
-          echo "🔍 驗證 KEY_PASSWORD..."
+          # 測試 KEY_PASSWORD
           if ! keytool -list -keystore app/release.keystore \
                -storepass "$STORE_PASS" \
                -alias "$ALIAS" \
                -keypass "$KEY_PASS" > /dev/null 2>&1; then
             echo "❌ KEY_PASSWORD 驗證失敗！"
-            echo ""
-            echo "KEYSTORE_PASSWORD 正確，但 KEY_PASSWORD 不正確。"
-            echo ""
-            echo "建議："
-            echo "1. 檢查 KEY_PASSWORD Secret 是否正確"
-            echo "2. 或刪除所有 4 個 Secrets 重新產生"
             exit 1
           fi
 
-          echo "✅ Step 2: KEY_PASSWORD 驗證成功"
+          echo "✅ KEY_PASSWORD 驗證成功"
           echo "✅ Keystore 完整驗證通過！別名: $ALIAS"
-
-          # 顯示憑證資訊（可選）
-          keytool -list -keystore app/release.keystore \
-                  -storepass "$STORE_PASS" \
-                  -alias "$ALIAS" | grep -E "Creation date|建立日期" || true
 
       # 6. 建立 keystore.properties
       - name: Create keystore.properties
         run: |
-          # 決定使用自動產生的還是 Secrets 的密碼
-          if [ -n "${{ env.KEYSTORE_PASSWORD }}" ]; then
-            # 使用自動產生的密碼
-            echo "storeFile=release.keystore" > keystore.properties
-            echo "storePassword=${{ env.KEYSTORE_PASSWORD }}" >> keystore.properties
-            echo "keyAlias=${{ env.KEY_ALIAS }}" >> keystore.properties
-            echo "keyPassword=${{ env.KEY_PASSWORD }}" >> keystore.properties
-          else
-            # 使用 Secrets 的密碼（直接存取，不經過環境變數）
-            echo "storeFile=release.keystore" > keystore.properties
-            echo "storePassword=${{ secrets.KEYSTORE_PASSWORD }}" >> keystore.properties
-            echo "keyAlias=${{ secrets.KEY_ALIAS }}" >> keystore.properties
-            echo "keyPassword=${{ secrets.KEY_PASSWORD }}" >> keystore.properties
-          fi
+          # 直接使用環境變數（無需再判斷來源）
+          cat > keystore.properties <<EOF
+          storeFile=release.keystore
+          storePassword=${{ env.KEYSTORE_PASSWORD }}
+          keyAlias=${{ env.KEY_ALIAS }}
+          keyPassword=${{ env.KEY_PASSWORD }}
+          EOF
 
-      # 7. 編譯 Release APK
+      # 7. 編譯 Release APK（顯示編譯時間）
       - name: Build Release APK
-        run: ./gradlew assembleRelease
+        run: |
+          echo "🚀 開始編譯..."
+          START_TIME=$(date +%s)
+
+          ./gradlew assembleRelease --info
+
+          END_TIME=$(date +%s)
+          DURATION=$((END_TIME - START_TIME))
+          echo ""
+          echo "✅ 編譯完成！耗時: ${DURATION} 秒"
 
       # 8. 取得版本號（從 tag）
       - name: Get version
