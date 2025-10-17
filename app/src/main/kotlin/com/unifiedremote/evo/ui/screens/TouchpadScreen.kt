@@ -154,14 +154,10 @@ fun TouchpadScreen(
         }
 
         if (showInputPanel) {
-            ModalBottomSheet(
-                onDismissRequest = { showInputPanel = false }
-            ) {
-                InputPanelContent(
-                    keyboardController = keyboardController,
-                    onDismiss = { showInputPanel = false }
-                )
-            }
+            FloatingInputPanel(
+                keyboardController = keyboardController,
+                onDismiss = { showInputPanel = false }
+            )
         }
 
         if (showDeviceSwitcher) {
@@ -815,7 +811,396 @@ fun TopControlBar(
     }
 }
 
+// ============ 浮動可拖曳輸入面板 ============
+
+@OptIn(ExperimentalMaterial3Api::class, ExperimentalComposeUiApi::class)
+@Composable
+fun FloatingInputPanel(
+    keyboardController: KeyboardController,
+    onDismiss: () -> Unit
+) {
+    val context = LocalContext.current
+    val density = androidx.compose.ui.platform.LocalDensity.current
+
+    // 視窗大小（固定）
+    val panelWidth = 360.dp
+    val panelHeight = 500.dp
+
+    // 取得螢幕大小
+    val screenWidthPx = with(density) {
+        context.resources.displayMetrics.widthPixels.toFloat()
+    }
+    val screenHeightPx = with(density) {
+        context.resources.displayMetrics.heightPixels.toFloat()
+    }
+    val panelWidthPx = with(density) { panelWidth.toPx() }
+    val panelHeightPx = with(density) { panelHeight.toPx() }
+
+    // 預設位置：右下角（避開 FAB，留 100dp 邊距）
+    val defaultOffsetX = screenWidthPx - panelWidthPx - with(density) { 16.dp.toPx() }
+    val defaultOffsetY = screenHeightPx - panelHeightPx - with(density) { 160.dp.toPx() }
+
+    // 拖曳位置狀態
+    var offsetX by remember { mutableStateOf(defaultOffsetX) }
+    var offsetY by remember { mutableStateOf(defaultOffsetY) }
+
+    Box(
+        modifier = Modifier.fillMaxSize()
+    ) {
+        // 浮動視窗
+        Surface(
+            modifier = Modifier
+                .offset { androidx.compose.ui.unit.IntOffset(offsetX.toInt(), offsetY.toInt()) }
+                .width(panelWidth)
+                .height(panelHeight),
+            shape = MaterialTheme.shapes.large,
+            color = MaterialTheme.colorScheme.surface,
+            tonalElevation = 8.dp,
+            shadowElevation = 8.dp
+        ) {
+            Column(modifier = Modifier.fillMaxSize()) {
+                // 拖曳把手（標題列）
+                Surface(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(56.dp)
+                        .pointerInput(Unit) {
+                            detectDragGestures { change, dragAmount ->
+                                change.consume()
+
+                                // 更新位置
+                                offsetX = (offsetX + dragAmount.x).coerceIn(
+                                    0f,
+                                    screenWidthPx - panelWidthPx
+                                )
+                                offsetY = (offsetY + dragAmount.y).coerceIn(
+                                    0f,
+                                    screenHeightPx - panelHeightPx
+                                )
+                            }
+                        },
+                    color = MaterialTheme.colorScheme.primaryContainer
+                ) {
+                    Row(
+                        modifier = Modifier
+                            .fillMaxSize()
+                            .padding(horizontal = 16.dp),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(8.dp)
+                        ) {
+                            Icon(
+                                imageVector = Icons.Default.DragHandle,
+                                contentDescription = "拖曳",
+                                tint = MaterialTheme.colorScheme.onPrimaryContainer
+                            )
+                            Text(
+                                "輸入面板（可拖曳）",
+                                style = MaterialTheme.typography.titleMedium,
+                                color = MaterialTheme.colorScheme.onPrimaryContainer
+                            )
+                        }
+                        IconButton(onClick = onDismiss) {
+                            Icon(
+                                imageVector = Icons.Default.Close,
+                                contentDescription = "關閉",
+                                tint = MaterialTheme.colorScheme.onPrimaryContainer
+                            )
+                        }
+                    }
+                }
+
+                // 面板內容（重用原有的 InputPanelContent 的內容）
+                InputPanelContentBody(
+                    keyboardController = keyboardController,
+                    modifier = Modifier.fillMaxSize()
+                )
+            }
+        }
+    }
+}
+
+// 輸入面板內容主體（不含標題列，供浮動面板與底部面板共用）
+@OptIn(ExperimentalMaterial3Api::class, ExperimentalComposeUiApi::class)
+@Composable
+fun InputPanelContentBody(
+    keyboardController: KeyboardController,
+    modifier: Modifier = Modifier
+) {
+    var modifierKeys by remember { mutableStateOf(setOf<String>()) }
+
+    // ✅ 原廠技巧：預填充 1000 個空字元（使刪除鍵總是有效）
+    val placeholderText = remember { "\u0000".repeat(1000) }
+    var textInput by remember {
+        mutableStateOf(TextFieldValue(
+            text = placeholderText,
+            selection = TextRange(placeholderText.length)
+        ))
+    }
+    var previousText by remember { mutableStateOf(placeholderText) }
+    var isResetting by remember { mutableStateOf(false) }
+
+    // 摺疊狀態
+    var showDirectionKeys by remember { mutableStateOf(false) }
+    var showFunctionKeys by remember { mutableStateOf(false) }
+    var showFKeys by remember { mutableStateOf(false) }
+    var showOtherKeys by remember { mutableStateOf(false) }
+
+    // 傳送組合鍵
+    fun sendCombination() {
+        val text = textInput.text.replace("\u0000", "")  // 移除空字元
+
+        if (text.isNotEmpty()) {
+            // 傳送每個字元作為組合鍵
+            for (char in text) {
+                if (char == '\n') {
+                    if (modifierKeys.isEmpty()) {
+                        keyboardController.enter()
+                    } else {
+                        keyboardController.press("enter", modifierKeys.toList())
+                    }
+                } else {
+                    keyboardController.press(char.toString(), modifierKeys.toList())
+                }
+            }
+            // 清除
+            isResetting = true
+            textInput = TextFieldValue(
+                text = placeholderText,
+                selection = TextRange(placeholderText.length)
+            )
+            previousText = placeholderText
+            modifierKeys = setOf()
+            isResetting = false
+        }
+    }
+
+    // ✅ 監聽文字變化並即時傳送（模仿原廠 TextWatcher.onTextChanged）
+    LaunchedEffect(textInput.text) {
+        if (isResetting) return@LaunchedEffect  // 重置時不處理
+
+        val currentText = textInput.text
+
+        // ✅ 原廠邏輯：文字長度為 0 時視為按刪除鍵
+        if (currentText.isEmpty()) {
+            ConnectionLogger.log("空輸入框刪除", ConnectionLogger.LogLevel.DEBUG)
+            keyboardController.backspace()
+
+            // ✅ 重置為預填充狀態（模仿原廠 removeTextChangedListener + setText）
+            isResetting = true
+            textInput = TextFieldValue(
+                text = placeholderText,
+                selection = TextRange(placeholderText.length)
+            )
+            previousText = placeholderText
+            isResetting = false
+            return@LaunchedEffect
+        }
+
+        if (modifierKeys.isNotEmpty()) {
+            previousText = currentText
+            return@LaunchedEffect
+        }
+
+        // 計算差異
+        val minLen = minOf(currentText.length, previousText.length)
+        var commonPrefix = 0
+        for (i in 0 until minLen) {
+            if (currentText[i] == previousText[i]) {
+                commonPrefix++
+            } else {
+                break
+            }
+        }
+
+        val deletedCount = previousText.length - commonPrefix
+        val addedText = currentText.substring(commonPrefix)
+
+        // 處理刪除
+        if (deletedCount > 0) {
+            ConnectionLogger.log("刪除 $deletedCount 個字元", ConnectionLogger.LogLevel.DEBUG)
+            repeat(deletedCount) {
+                keyboardController.backspace()
+            }
+        }
+
+        // 處理新增的文字
+        for (char in addedText) {
+            if (char == '\n') {
+                keyboardController.enter()
+            } else if (char != '\u0000') {
+                keyboardController.type(char.toString())
+            }
+        }
+
+        previousText = currentText
+    }
+
+    Column(
+        modifier = modifier
+            .fillMaxWidth()
+            .padding(16.dp)
+            .verticalScroll(rememberScrollState())
+    ) {
+        // BLE 文字輸入模式切換（僅 BLE 模式且為原廠硬體時顯示）
+        if (keyboardController is BleKeyboardControllerAdapter) {
+            val bleKeyboardController = keyboardController.bleKeyboardController
+
+            // 使用 remember + mutableStateOf 追蹤模式變化，確保 UI 更新
+            var currentMode by remember { mutableStateOf(bleKeyboardController.getTextInputMode()) }
+
+            val modeText = when (currentMode) {
+                com.unifiedremote.evo.network.ble.BleTextInputMode.BIG5_ALT_CODE -> "Big5 Alt 碼"
+                com.unifiedremote.evo.network.ble.BleTextInputMode.ALT_CODE -> "Alt+X Unicode"
+            }
+
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Text("輸入模式：", style = MaterialTheme.typography.labelMedium)
+                Button(
+                    onClick = {
+                        // 切換模式
+                        val newMode = when (currentMode) {
+                            com.unifiedremote.evo.network.ble.BleTextInputMode.BIG5_ALT_CODE ->
+                                com.unifiedremote.evo.network.ble.BleTextInputMode.ALT_CODE
+                            com.unifiedremote.evo.network.ble.BleTextInputMode.ALT_CODE ->
+                                com.unifiedremote.evo.network.ble.BleTextInputMode.BIG5_ALT_CODE
+                        }
+                        // 更新控制器狀態
+                        bleKeyboardController.setTextInputMode(newMode)
+                        // 更新 UI 狀態（觸發 recompose）
+                        currentMode = newMode
+                    },
+                    modifier = Modifier.height(36.dp)
+                ) {
+                    Text(modeText, style = MaterialTheme.typography.bodySmall)
+                }
+            }
+
+            Spacer(modifier = Modifier.height(8.dp))
+        }
+
+        // 修飾鍵選擇器
+        Text("修飾鍵", style = MaterialTheme.typography.labelLarge)
+        Spacer(modifier = Modifier.height(8.dp))
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.spacedBy(8.dp)
+        ) {
+            listOf("ctrl", "shift", "alt", "win").forEach { mod ->
+                FilterChip(
+                    selected = modifierKeys.contains(mod),
+                    onClick = {
+                        modifierKeys = if (modifierKeys.contains(mod)) {
+                            modifierKeys - mod
+                        } else {
+                            modifierKeys + mod
+                        }
+                    },
+                    label = { Text(mod.uppercase()) },
+                    modifier = Modifier.weight(1f)
+                )
+            }
+        }
+
+        Spacer(modifier = Modifier.height(16.dp))
+
+        // ✅ 文字輸入框（使用 Compose OutlinedTextField + visualTransformation 隱藏空字元）
+        OutlinedTextField(
+            value = textInput,
+            onValueChange = { newValue ->
+                if (!isResetting) {
+                    textInput = newValue
+                }
+            },
+            label = { Text(if (modifierKeys.isEmpty()) "文字輸入（即時傳送）" else "文字輸入") },
+            maxLines = 3,
+            visualTransformation = { text ->
+                // 過濾掉空字元，讓使用者看到的是乾淨的輸入框
+                val filtered = text.text.replace("\u0000", "")
+                TransformedText(
+                    AnnotatedString(filtered),
+                    // ✅ 使用自訂 OffsetMapping 處理空字元過濾（避免 IndexOutOfBoundsException）
+                    NullCharFilterOffsetMapping(text.text)
+                )
+            },
+            modifier = Modifier
+                .fillMaxWidth()
+                .height(120.dp)
+        )
+
+        // 傳送按鈕（當有修飾鍵時顯示）
+        if (modifierKeys.isNotEmpty()) {
+            Spacer(modifier = Modifier.height(8.dp))
+            Button(
+                onClick = { sendCombination() },
+                modifier = Modifier.fillMaxWidth()
+            ) {
+                val text = textInput.text.replace("\u0000", "")
+                val preview = buildString {
+                    modifierKeys.forEach { append(it.uppercase()).append(" + ") }
+                    append(if (text.isEmpty()) "..." else text)
+                }
+                Text("傳送: $preview")
+            }
+        }
+
+        Spacer(modifier = Modifier.height(16.dp))
+
+        // 可摺疊區塊：方向鍵
+        ExpandableSection(
+            title = "方向鍵",
+            expanded = showDirectionKeys,
+            onToggle = { showDirectionKeys = !showDirectionKeys }
+        ) {
+            DirectionKeysContent(keyboardController)
+        }
+
+        Spacer(modifier = Modifier.height(8.dp))
+
+        // 可摺疊區塊：功能鍵
+        ExpandableSection(
+            title = "功能鍵",
+            expanded = showFunctionKeys,
+            onToggle = { showFunctionKeys = !showFunctionKeys }
+        ) {
+            FunctionKeysContent(keyboardController)
+        }
+
+        Spacer(modifier = Modifier.height(8.dp))
+
+        // 可摺疊區塊：F1-F12
+        ExpandableSection(
+            title = "F 鍵",
+            expanded = showFKeys,
+            onToggle = { showFKeys = !showFKeys }
+        ) {
+            FKeysContent(keyboardController)
+        }
+
+        Spacer(modifier = Modifier.height(8.dp))
+
+        // 可摺疊區塊：其他按鍵
+        ExpandableSection(
+            title = "其他按鍵",
+            expanded = showOtherKeys,
+            onToggle = { showOtherKeys = !showOtherKeys }
+        ) {
+            OtherKeysContent(keyboardController)
+        }
+
+        Spacer(modifier = Modifier.height(80.dp)) // 為軟體鍵盤留空間
+    }
+}
+
 // 底部輸入面板（整合修飾鍵 + 文字輸入 + 虛擬鍵盤）
+// 註：此 Composable 保留以備未來需要 BottomSheet 版本
 @OptIn(ExperimentalMaterial3Api::class, ExperimentalComposeUiApi::class)
 @Composable
 fun InputPanelContent(
