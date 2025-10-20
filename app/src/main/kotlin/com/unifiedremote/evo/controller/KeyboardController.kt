@@ -46,15 +46,20 @@ open class KeyboardController(
 
     open fun type(text: String) {
         launch {
-            val extras = Extras().apply {
-                add("Text", text)  // 參數名大寫
+            // 逐字元傳送，避免伺服器處理不及
+            for (char in text) {
+                val extras = Extras().apply {
+                    add("Text", char.toString())
+                }
+                val action = Action("Text", "Core.Input", extras)
+
+                ConnectionLogger.log("傳送字元: '$char'", ConnectionLogger.LogLevel.DEBUG)
+
+                connection.send(createControlPacket(action))
+
+                // 加入延遲讓伺服器有時間處理（參考原廠實作）
+                kotlinx.coroutines.delay(20)  // 20ms
             }
-            val action = Action("Text", "Core.Input", extras)
-
-            val preview = if (text.length > 20) "${text.take(20)}..." else text
-            ConnectionLogger.log("傳送文字: '$preview'", ConnectionLogger.LogLevel.DEBUG)
-
-            connection.send(createControlPacket(action))
         }
     }
 

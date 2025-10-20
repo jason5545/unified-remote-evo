@@ -1123,7 +1123,7 @@ class BleManager(private val context: Context) {
      * @param modifiers 修飾鍵
      * @param keys 按鍵 Usage ID
      */
-    fun sendKeyPress(modifiers: Int = 0, vararg keys: Int) {
+    suspend fun sendKeyPress(modifiers: Int = 0, vararg keys: Int) {
         if (!isConnected()) {
             Log.w(TAG, "未連線，無法傳送鍵盤按鍵")
             return
@@ -1131,10 +1131,15 @@ class BleManager(private val context: Context) {
 
         // 按下
         writeKeyboardReport(HidReportBuilder.buildKeyboardReport(modifiers, *keys))
-        // 稍微延遲後釋放
-        mainHandler.postDelayed({
-            writeKeyboardReport(HidReportBuilder.buildEmptyKeyboardReport())
-        }, 50)
+
+        // 同步延遲，確保按下被處理
+        delay(50)
+
+        // 釋放
+        writeKeyboardReport(HidReportBuilder.buildEmptyKeyboardReport())
+
+        // 字元間隔延遲
+        delay(12)
     }
 
     /**
