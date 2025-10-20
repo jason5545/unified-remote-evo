@@ -1120,6 +1120,11 @@ class BleManager(private val context: Context) {
     /**
      * 傳送鍵盤按鍵
      *
+     * 重大修正（2025-10-20）：
+     * - 問題：使用 delay() 不會等待 GATT 寫入完成，導致字元順序混亂
+     * - 修正：確保使用 actionQueue（writeKeyboardReport 已經會自動加入佇列）
+     * - 延遲參數：增加延遲確保穩定性（參考原廠 bleAltDelay = 12ms）
+     *
      * @param modifiers 修飾鍵
      * @param keys 按鍵 Usage ID
      */
@@ -1129,17 +1134,17 @@ class BleManager(private val context: Context) {
             return
         }
 
-        // 按下
+        // 按下（writeKeyboardReport 會自動加入 actionQueue）
         writeKeyboardReport(HidReportBuilder.buildKeyboardReport(modifiers, *keys))
-
-        // 同步延遲，確保按下被處理
-        delay(50)
+        actionQueue.enqueue(BleAction.Delay(50))  // 按下延遲（增加到 50ms 確保穩定）
 
         // 釋放
         writeKeyboardReport(HidReportBuilder.buildEmptyKeyboardReport())
+        actionQueue.enqueue(BleAction.Delay(50))  // 字元間隔延遲（增加到 50ms 確保穩定）
 
-        // 字元間隔延遲
-        delay(12)
+        // 等待 actionQueue 處理完成（重要！）
+        // 注意：這是非阻塞延遲，讓協程釋放執行緒給 actionQueue 處理
+        delay(110)  // 50ms 按下 + 50ms 釋放 + 10ms 緩衝
     }
 
     /**

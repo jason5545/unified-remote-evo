@@ -1027,12 +1027,23 @@ fun InputPanelContentBody(
             }
         }
 
-        // 處理新增的文字
-        for (char in addedText) {
-            if (char == '\n') {
-                keyboardController.enter()
-            } else if (char != '\u0000') {
-                keyboardController.type(char.toString())
+        // 處理新增的文字（修正：一次傳送整個字串，避免協程並發導致順序混亂）
+        if (addedText.contains('\n')) {
+            // 如果包含換行，需要分段處理
+            val lines = addedText.split('\n')
+            for ((index, line) in lines.withIndex()) {
+                if (line.isNotEmpty() && line != "\u0000") {
+                    keyboardController.type(line)  // 整行一次傳送
+                }
+                if (index < lines.size - 1) {
+                    keyboardController.enter()  // 換行
+                }
+            }
+        } else {
+            // 沒有換行，直接傳送整個字串
+            val cleanText = addedText.replace("\u0000", "")
+            if (cleanText.isNotEmpty()) {
+                keyboardController.type(cleanText)  // 整個字串一次傳送
             }
         }
 
@@ -1304,12 +1315,23 @@ fun InputPanelContent(
             }
         }
 
-        // 處理新增的文字
-        for (char in addedText) {
-            if (char == '\n') {
-                keyboardController.enter()
-            } else if (char != '\u0000') {
-                keyboardController.type(char.toString())
+        // 處理新增的文字（修正：一次傳送整個字串，避免協程並發導致順序混亂）
+        if (addedText.contains('\n')) {
+            // 如果包含換行，需要分段處理
+            val lines = addedText.split('\n')
+            for ((index, line) in lines.withIndex()) {
+                if (line.isNotEmpty() && line != "\u0000") {
+                    keyboardController.type(line)  // 整行一次傳送
+                }
+                if (index < lines.size - 1) {
+                    keyboardController.enter()  // 換行
+                }
+            }
+        } else {
+            // 沒有換行，直接傳送整個字串
+            val cleanText = addedText.replace("\u0000", "")
+            if (cleanText.isNotEmpty()) {
+                keyboardController.type(cleanText)  // 整個字串一次傳送
             }
         }
 
