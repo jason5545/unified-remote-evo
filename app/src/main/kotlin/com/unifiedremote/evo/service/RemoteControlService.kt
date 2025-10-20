@@ -244,7 +244,7 @@ class RemoteControlService : Service() {
     }
 
     /**
-     * 斷開所有連線
+     * 中斷所有連線
      */
     fun disconnectAll() {
         tcpStateJob?.cancel()

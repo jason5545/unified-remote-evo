@@ -63,7 +63,7 @@ class UnifiedConnectionManager(
     }
 
     /**
-     * 斷開連線
+     * 中斷連線
      */
     fun disconnect() {
         when (val conn = currentConnection) {

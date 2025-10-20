@@ -496,7 +496,7 @@ class MainActivity : ComponentActivity() {
                 }
 
                 service.onDisconnected = {
-                    ConnectionLogger.log("❌ 與伺服器斷開連線", ConnectionLogger.LogLevel.WARNING)
+                    ConnectionLogger.log("❌ 與伺服器中斷連線", ConnectionLogger.LogLevel.WARNING)
                 }
 
                 // 透過服務建立連線
@@ -574,7 +574,7 @@ class MainActivity : ComponentActivity() {
                 }
 
                 service.onDisconnected = {
-                    ConnectionLogger.log("❌ 與伺服器斷開連線", ConnectionLogger.LogLevel.WARNING)
+                    ConnectionLogger.log("❌ 與伺服器中斷連線", ConnectionLogger.LogLevel.WARNING)
                 }
 
                 // 透過服務建立連線

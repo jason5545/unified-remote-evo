@@ -202,7 +202,7 @@ class BluetoothConnectionManager(
     }
 
     fun disconnect() {
-        log("斷開藍牙連線", ConnectionLogger.LogLevel.INFO)
+        log("中斷藍牙連線", ConnectionLogger.LogLevel.INFO)
         isConnected = false
         handshakeCompleted = false
         serverSession = null
@@ -296,7 +296,7 @@ class BluetoothConnectionManager(
                     // 藍牙不需要延遲（原版沒有）
 
                 } catch (e: EOFException) {
-                    log("連線已關閉", ConnectionLogger.LogLevel.WARNING)
+                    log("伺服器中斷連線", ConnectionLogger.LogLevel.WARNING)
                     break
                 } catch (e: Exception) {
                     log("接收錯誤: ${e.message}", ConnectionLogger.LogLevel.ERROR)
@@ -318,7 +318,7 @@ class BluetoothConnectionManager(
 
                 val now = System.currentTimeMillis()
                 if (lastHeartbeatTime > 0 && (now - lastHeartbeatTime) > HEARTBEAT_TIMEOUT) {
-                    log("心跳超時", ConnectionLogger.LogLevel.ERROR)
+                    log("心跳逾時", ConnectionLogger.LogLevel.ERROR)
                     disconnect()
                     scheduleReconnect()
                     break

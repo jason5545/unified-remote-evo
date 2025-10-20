@@ -30,10 +30,11 @@ class ConnectionManager(
         const val CONNECTION_TIMEOUT = 10000  // 10秒（Tailscale 可能較慢）
         const val SOCKET_TIMEOUT = 30000      // 30秒讀取 timeout
         const val BUFFER_SIZE = 16384
-        const val HEARTBEAT_INTERVAL = 5000L  // 5秒（快速偵測伺服器無回應）
-        const val HEARTBEAT_TIMEOUT = 2000L   // 2秒容錯時間
-        val RECONNECT_DELAYS = longArrayOf(500, 1000, 2000)
-        const val MAX_RECONNECT_ATTEMPTS = 10
+        const val HEARTBEAT_INTERVAL = 15000L  // 15秒（針對 Tailscale 最佳化）
+        const val HEARTBEAT_TIMEOUT = 10000L   // 10秒容錯時間（考慮網路延遲）
+        // 指數退避重連策略：2s → 5s → 10s → 20s → 30s → 60s
+        val RECONNECT_DELAYS = longArrayOf(2000, 5000, 10000, 20000, 30000, 60000)
+        const val MAX_RECONNECT_ATTEMPTS = 30  // 增加最大重試次數（約 30 分鐘）
     }
 
     private var socket: Socket? = null
@@ -59,9 +60,19 @@ class ConnectionManager(
     var onPacketReceived: ((Packet) -> Unit)? = null
     var onLog: ((String, ConnectionLogger.LogLevel) -> Unit)? = null
 
+    /**
+     * 手動重連（重置重連計數器）
+     */
+    suspend fun reconnect() {
+        log("手動重連：重置重連計數器", ConnectionLogger.LogLevel.INFO)
+        disconnect()
+        reconnectAttempt = 0  // 重置計數器
+        connect()
+    }
+
     suspend fun connect() = withContext(Dispatchers.IO) {
         _connectionState.value = UnifiedConnectionState.Connecting("正在連線到 $host:$port...")
-        log("開始連線 $host:$port (timeout=${CONNECTION_TIMEOUT}ms)", ConnectionLogger.LogLevel.INFO)
+        log("開始連線 $host:$port (timeout=${CONNECTION_TIMEOUT}ms, 嘗試=${reconnectAttempt + 1})", ConnectionLogger.LogLevel.INFO)
 
         try {
             log("建立 Socket...", ConnectionLogger.LogLevel.DEBUG)
@@ -117,31 +128,68 @@ class ConnectionManager(
     }
 
     fun disconnect() {
-        log("斷開連線", ConnectionLogger.LogLevel.INFO)
+        log("中斷連線", ConnectionLogger.LogLevel.INFO)
+
+        // 立即設為未連線，避免重複觸發
+        val wasConnected = isConnected
         isConnected = false
         handshakeCompleted = false
         serverSession = null
 
+        // 取消所有背景任務
         heartbeatJob?.cancel()
         heartbeatJob = null
 
         receiveJob?.cancel()
         receiveJob = null
 
+        // 依序關閉資源（順序很重要）
         try {
-            input?.close()
-            output?.close()
-            socket?.close()
-        } catch (e: Exception) {
-            log("關閉 Socket 錯誤: ${e.message}", ConnectionLogger.LogLevel.WARNING)
+            // 1. 先關閉輸出串流（確保資料送出）
+            output?.let {
+                try {
+                    it.flush()
+                    it.close()
+                    log("輸出串流已關閉", ConnectionLogger.LogLevel.DEBUG)
+                } catch (e: Exception) {
+                    log("關閉輸出串流錯誤: ${e.message}", ConnectionLogger.LogLevel.WARNING)
+                }
+            }
+
+            // 2. 關閉輸入串流
+            input?.let {
+                try {
+                    it.close()
+                    log("輸入串流已關閉", ConnectionLogger.LogLevel.DEBUG)
+                } catch (e: Exception) {
+                    log("關閉輸入串流錯誤: ${e.message}", ConnectionLogger.LogLevel.WARNING)
+                }
+            }
+
+            // 3. 最後關閉 Socket
+            socket?.let {
+                try {
+                    if (!it.isClosed) {
+                        it.close()
+                        log("Socket 已關閉", ConnectionLogger.LogLevel.DEBUG)
+                    }
+                } catch (e: Exception) {
+                    log("關閉 Socket 錯誤: ${e.message}", ConnectionLogger.LogLevel.WARNING)
+                }
+            }
+        } finally {
+            // 確保清空參考
+            input = null
+            output = null
+            socket = null
         }
 
-        input = null
-        output = null
-        socket = null
-
         _connectionState.value = UnifiedConnectionState.Disconnected
-        onDisconnected?.invoke()
+
+        // 只有真的斷線時才觸發回調（避免重複觸發）
+        if (wasConnected) {
+            onDisconnected?.invoke()
+        }
     }
 
     suspend fun send(packet: Packet) = withContext(Dispatchers.IO) {
@@ -175,52 +223,85 @@ class ConnectionManager(
 
     private fun startReceiving() {
         receiveJob = launch {
-            log("開始接收封包迴圈", ConnectionLogger.LogLevel.DEBUG)
+            log("接收迴圈啟動", ConnectionLogger.LogLevel.INFO)
+            var packetCount = 0
 
             while (isActive && isConnected) {
                 try {
-                    log("等待讀取封包長度...", ConnectionLogger.LogLevel.DEBUG)
-                    val length = input?.readInt() ?: break
-                    log("收到封包長度: $length bytes", ConnectionLogger.LogLevel.DEBUG)
-
-                    if (length <= 0 || length > BUFFER_SIZE) {
-                        log("無效的封包長度: $length", ConnectionLogger.LogLevel.ERROR)
+                    // 讀取封包長度（4 bytes）
+                    val length = input?.readInt()
+                    if (length == null) {
+                        log("讀取封包長度失敗：串流已關閉", ConnectionLogger.LogLevel.ERROR)
                         break
                     }
 
-                    val encrypted = input?.readByte() ?: 0
-                    log("加密標記: $encrypted", ConnectionLogger.LogLevel.DEBUG)
+                    if (length <= 0 || length > BUFFER_SIZE) {
+                        log("無效的封包長度: $length (範圍: 1-$BUFFER_SIZE)", ConnectionLogger.LogLevel.ERROR)
+                        break
+                    }
 
+                    // 讀取加密標記（1 byte）
+                    val encrypted = input?.readByte()
+                    if (encrypted == null) {
+                        log("讀取加密標記失敗：串流已關閉", ConnectionLogger.LogLevel.ERROR)
+                        break
+                    }
+
+                    // 讀取封包資料
                     val dataLength = length - 1  // 扣除加密標記
                     val data = ByteArray(dataLength)
-                    input?.readFully(data) ?: break
-                    log("讀取封包資料完成: $dataLength bytes", ConnectionLogger.LogLevel.DEBUG)
+                    val readSuccess = try {
+                        input?.readFully(data)
+                        true
+                    } catch (e: Exception) {
+                        false
+                    }
 
+                    if (!readSuccess) {
+                        log("讀取封包資料失敗：串流已關閉", ConnectionLogger.LogLevel.ERROR)
+                        break
+                    }
+
+                    packetCount++
+                    log("收到封包 #$packetCount: ${dataLength} bytes (加密=$encrypted)", ConnectionLogger.LogLevel.DEBUG)
+
+                    // 反序列化封包
                     val packet = PacketSerializer.deserialize(data)
                     if (packet != null) {
-                        log("反序列化成功: Action=${packet.action}, KeepAlive=${packet.keepAlive}", ConnectionLogger.LogLevel.DEBUG)
                         if (packet.keepAlive == true) {
                             lastHeartbeatReceivedTime = System.currentTimeMillis()
-                            log("收到心跳回應", ConnectionLogger.LogLevel.INFO)
+                            log("收到心跳回應 #$packetCount", ConnectionLogger.LogLevel.DEBUG)
                         } else {
+                            log("收到資料封包 #$packetCount: Action=${packet.action}", ConnectionLogger.LogLevel.DEBUG)
                             handlePacket(packet)
                         }
                     } else {
-                        log("反序列化失敗", ConnectionLogger.LogLevel.ERROR)
+                        log("反序列化失敗：封包 #$packetCount 無效", ConnectionLogger.LogLevel.ERROR)
                     }
 
-                    delay(5)
+                    delay(5)  // 避免過度佔用 CPU
 
                 } catch (e: EOFException) {
-                    log("連線已關閉", ConnectionLogger.LogLevel.WARNING)
+                    log("伺服器中斷連線（已接收 $packetCount 個封包）", ConnectionLogger.LogLevel.WARNING)
+                    break
+                } catch (e: java.net.SocketTimeoutException) {
+                    log("接收逾時：超過 ${SOCKET_TIMEOUT}ms 無資料（已接收 $packetCount 個封包）", ConnectionLogger.LogLevel.ERROR)
+                    break
+                } catch (e: java.net.SocketException) {
+                    log("Socket 異常: ${e.message}（已接收 $packetCount 個封包）", ConnectionLogger.LogLevel.ERROR)
                     break
                 } catch (e: Exception) {
-                    log("接收錯誤: ${e.message}", ConnectionLogger.LogLevel.ERROR)
+                    log("接收錯誤: ${e.javaClass.simpleName} - ${e.message}（已接收 $packetCount 個封包）", ConnectionLogger.LogLevel.ERROR)
+                    e.printStackTrace()
                     break
                 }
             }
 
+            log("接收迴圈結束（isActive=$isActive, isConnected=$isConnected, 共接收 $packetCount 個封包）", ConnectionLogger.LogLevel.INFO)
+
+            // 只有在仍處於連線狀態時才觸發重連（避免手動斷線時重連）
             if (isConnected) {
+                log("偵測到異常斷線，排程重連...", ConnectionLogger.LogLevel.WARNING)
                 disconnect()
                 scheduleReconnect()
             }
@@ -231,43 +312,59 @@ class ConnectionManager(
         heartbeatJob = launch {
             // 初始化：首次啟動時設定為當前時間
             lastHeartbeatReceivedTime = System.currentTimeMillis()
+            lastHeartbeatSentTime = 0L
+
+            log("心跳機制啟動（間隔=${HEARTBEAT_INTERVAL}ms, 容錯=${HEARTBEAT_TIMEOUT}ms）", ConnectionLogger.LogLevel.INFO)
 
             while (isActive && isConnected) {
-                delay(HEARTBEAT_INTERVAL)
-
                 val now = System.currentTimeMillis()
-
-                // 檢查心跳超時：如果上次收到心跳回應的時間距離現在超過閾值
-                // 閾值 = HEARTBEAT_INTERVAL + HEARTBEAT_TIMEOUT（考慮正常延遲）
                 val timeSinceLastReceived = now - lastHeartbeatReceivedTime
+
+                // 先檢查心跳逾時（在傳送前檢查，避免延遲一個週期）
                 if (lastHeartbeatSentTime > 0 && timeSinceLastReceived > (HEARTBEAT_INTERVAL + HEARTBEAT_TIMEOUT)) {
-                    log("心跳超時：已 ${timeSinceLastReceived}ms 未收到伺服器回應", ConnectionLogger.LogLevel.ERROR)
+                    log("心跳逾時：已 ${timeSinceLastReceived}ms 未收到伺服器回應（超過閾值 ${HEARTBEAT_INTERVAL + HEARTBEAT_TIMEOUT}ms）", ConnectionLogger.LogLevel.ERROR)
                     disconnect()
                     scheduleReconnect()
                     break
                 }
 
                 // 傳送心跳封包
-                val heartbeat = Packet(keepAlive = true)
-                send(heartbeat)
-                lastHeartbeatSentTime = now
+                try {
+                    val heartbeat = Packet(keepAlive = true)
+                    send(heartbeat)
+                    lastHeartbeatSentTime = now
 
-                log("傳送心跳封包（上次收到回應：${timeSinceLastReceived}ms 前）", ConnectionLogger.LogLevel.DEBUG)
+                    log("傳送心跳封包（上次收到回應：${timeSinceLastReceived}ms 前）", ConnectionLogger.LogLevel.DEBUG)
+                } catch (e: Exception) {
+                    log("傳送心跳失敗: ${e.message}", ConnectionLogger.LogLevel.ERROR)
+                    disconnect()
+                    scheduleReconnect()
+                    break
+                }
+
+                // 等待下一個週期
+                delay(HEARTBEAT_INTERVAL)
             }
+
+            log("心跳機制已停止", ConnectionLogger.LogLevel.INFO)
         }
     }
 
     private fun scheduleReconnect() {
         if (reconnectAttempt >= MAX_RECONNECT_ATTEMPTS) {
-            log("達到最大重連次數，停止重連", ConnectionLogger.LogLevel.ERROR)
-            _connectionState.value = UnifiedConnectionState.Error("連線失敗：已達最大重連次數")
+            log("達到最大重連次數 ($MAX_RECONNECT_ATTEMPTS)，停止自動重連", ConnectionLogger.LogLevel.ERROR)
+            log("提示：請檢查網路連線或伺服器狀態，可手動觸發重連", ConnectionLogger.LogLevel.INFO)
+            _connectionState.value = UnifiedConnectionState.Error("連線失敗：已達最大重連次數（${MAX_RECONNECT_ATTEMPTS} 次）")
             return
         }
 
+        // 使用指數退避策略
         val delayIndex = reconnectAttempt.coerceAtMost(RECONNECT_DELAYS.size - 1)
         val delay = RECONNECT_DELAYS[delayIndex]
 
-        log("將在 ${delay}ms 後重連（第 ${reconnectAttempt + 1} 次）", ConnectionLogger.LogLevel.WARNING)
+        val delaySeconds = delay / 1000.0
+        log("排程重連：第 ${reconnectAttempt + 1}/$MAX_RECONNECT_ATTEMPTS 次，將在 ${delaySeconds}秒 後重試", ConnectionLogger.LogLevel.WARNING)
+
         _connectionState.value = UnifiedConnectionState.Reconnecting(
             attempt = reconnectAttempt + 1,
             maxAttempts = MAX_RECONNECT_ATTEMPTS,
@@ -276,8 +373,15 @@ class ConnectionManager(
 
         launch {
             delay(delay)
-            reconnectAttempt++
-            connect()
+
+            // 重連前檢查是否仍需要重連（避免重複觸發）
+            if (!isConnected && reconnectAttempt < MAX_RECONNECT_ATTEMPTS) {
+                reconnectAttempt++
+                log("開始第 ${reconnectAttempt} 次重連嘗試...", ConnectionLogger.LogLevel.INFO)
+                connect()
+            } else {
+                log("重連已取消（isConnected=$isConnected, attempt=$reconnectAttempt）", ConnectionLogger.LogLevel.DEBUG)
+            }
         }
     }
 
