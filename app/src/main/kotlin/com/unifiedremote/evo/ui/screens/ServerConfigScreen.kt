@@ -16,6 +16,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalClipboardManager
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalLocale
 import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.input.TextFieldValue
@@ -56,6 +57,7 @@ fun ServerConfigScreen(
 
     // 取得版本資訊
     val context = LocalContext.current
+    val locale = LocalLocale.current.platformLocale
     val versionInfo = remember {
         try {
             val packageInfo = context.packageManager.getPackageInfo(context.packageName, 0)
@@ -380,7 +382,7 @@ fun ServerConfigScreen(
                                 ConnectionLogger.LogLevel.WARNING -> "WARN "
                                 ConnectionLogger.LogLevel.ERROR -> "ERROR"
                             }
-                            val timestamp = java.text.SimpleDateFormat("HH:mm:ss.SSS", java.util.Locale.getDefault())
+                            val timestamp = java.text.SimpleDateFormat("HH:mm:ss.SSS", locale)
                                 .format(java.util.Date(entry.timestamp))
                             Text(
                                 text = "[$timestamp] [$level] ${entry.message}",

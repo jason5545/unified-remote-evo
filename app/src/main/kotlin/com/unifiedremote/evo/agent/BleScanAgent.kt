@@ -10,6 +10,7 @@ import android.location.LocationManager
 import android.os.SystemClock
 import android.util.Log
 import androidx.core.content.ContextCompat
+import androidx.core.location.LocationManagerCompat
 import android.Manifest
 import android.content.pm.PackageManager
 import android.os.ParcelUuid
@@ -38,7 +39,7 @@ object BleScanAgent {
 
     fun isLocationEnabled(ctx: Context): Boolean = try {
         val lm = ctx.getSystemService(LocationManager::class.java)
-        lm?.isLocationEnabled == true
+        lm != null && LocationManagerCompat.isLocationEnabled(lm)
     } catch (_: Throwable) { false }
 
     // === 診斷掃描：無過濾器，強化日誌，長時間 ===
