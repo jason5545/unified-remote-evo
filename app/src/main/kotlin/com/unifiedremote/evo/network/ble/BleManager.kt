@@ -69,16 +69,16 @@ enum class EmulStickHardware {
     /** 原廠 WCH CH582（僅支援 Big5 Alt 碼） */
     ORIGINAL_WCH,
 
-    /** ESP32-S3 Evo（支援 HID Unicode，速度快 6 倍）*/
+    /** ESP32-S3 Evo（支援 BLE CH5 Unicode transport）*/
     ESP32S3_EVO,
 
     /** 未知硬體（預設為原廠模式） */
     UNKNOWN;
 
     /**
-     * 是否支援 HID Unicode 模式
+     * 是否支援 BLE CH5 Unicode transport
      */
-    fun supportsHidUnicode(): Boolean {
+    fun supportsCH5UnicodeTransport(): Boolean {
         return this == ESP32S3_EVO
     }
 
@@ -763,11 +763,11 @@ class BleManager(private val context: Context) {
                 if (ch5UnicodeCharacteristic != null) {
                     Log.d(TAG, "✅ 已取得 CH5 特徵值（Unicode 輸入，待硬體偵測後確認）")
                     ConnectionLogger.log(
-                        "✅ 已取得 CH5 特徵值（HID Unicode 支援，待硬體偵測確認）",
+                        "✅ 已取得 CH5 特徵值（Unicode transport，待硬體偵測確認）",
                         ConnectionLogger.LogLevel.INFO
                     )
                 } else {
-                    Log.d(TAG, "⚠️ 未找到 CH5 特徵值（硬體可能為原廠 EmulStick，不支援 HID Unicode）")
+                    Log.d(TAG, "⚠️ 未找到 CH5 特徵值（硬體可能為原廠 EmulStick）")
                     ConnectionLogger.log(
                         "⚠️ 未找到 CH5 特徵值（可能為原廠硬體）",
                         ConnectionLogger.LogLevel.DEBUG
@@ -1625,26 +1625,11 @@ class BleManager(private val context: Context) {
     }
 
     /**
-     * 傳送 Unicode 字元（HID Unicode 模式，僅 ESP32-S3）
+     * 透過 BLE CH5 傳送 Unicode code point（僅 ESP32-S3）。
      *
-     * 直接透過 CH5 characteristic 傳送 Unicode code point 到 ESP32-S3，
-     * ESP32-S3 韌體會透過 USB HID Unicode Report 傳送到 PC，Windows 自動顯示字元。
-     *
-     * 技術原理：
-     * 1. Android APP 將 Unicode code point（32-bit）傳送到 CH5
-     * 2. ESP32-S3 接收並透過 USB HID Usage Page 0x10 (Unicode) 傳送到 PC
-     * 3. Windows 原生支援 HID Unicode，無需驅動程式
-     * 4. 速度快 6.6 倍（vs Big5 Alt 碼）
-     *
-     * 效能：
-     * - 單字元延遲：約 20ms（vs Big5 Alt 碼 132ms）
-     * - 速度提升：6.6x 快
-     * - 無需 NumLock 或英語輸入法
-     *
-     * 使用限制：
-     * - 僅支援 ESP32-S3 Evo 硬體
-     * - 需要 Windows 10/11（Windows 7/8 可能不支援）
-     * - 硬體到貨後才能測試
+     * 目前 ESP 韌體不是送 native USB HID Unicode report，而是把 code point
+     * 轉成十六進位鍵盤輸入，再送 Windows Alt+X。因此只適用於支援 Alt+X
+     * 轉換的 Windows 程式，不能視為 macOS／Linux 通用文字輸入。
      *
      * @param char Unicode 字元
      */
@@ -1654,11 +1639,11 @@ class BleManager(private val context: Context) {
             return
         }
 
-        // 檢查硬體是否支援 HID Unicode
-        if (!hardwareType.supportsHidUnicode()) {
-            Log.w(TAG, "硬體不支援 HID Unicode 模式：${hardwareType.getDisplayName()}")
+        // 檢查硬體是否支援 CH5 Unicode transport
+        if (!hardwareType.supportsCH5UnicodeTransport()) {
+            Log.w(TAG, "硬體不支援 CH5 Unicode transport：${hardwareType.getDisplayName()}")
             ConnectionLogger.log(
-                "⚠️ 硬體不支援 HID Unicode（${hardwareType.getDisplayName()}），應使用 Alt 碼模式",
+                "⚠️ 硬體不支援 CH5 Unicode transport（${hardwareType.getDisplayName()}）",
                 ConnectionLogger.LogLevel.WARNING
             )
             return
@@ -1669,7 +1654,7 @@ class BleManager(private val context: Context) {
         if (ch5 == null) {
             Log.e(TAG, "CH5 characteristic 不可用")
             ConnectionLogger.log(
-                "❌ CH5 characteristic 不可用（硬體可能未實作 HID Unicode）",
+                "❌ CH5 characteristic 不可用（硬體可能未實作 Unicode transport）",
                 ConnectionLogger.LogLevel.ERROR
             )
             return
@@ -1678,7 +1663,7 @@ class BleManager(private val context: Context) {
         val codepoint = char.code
         Log.d(TAG, "📤 傳送 Unicode 字元：'$char' (U+${codepoint.toString(16).uppercase()})")
         ConnectionLogger.log(
-            "📤 傳送 HID Unicode：'$char' (U+${codepoint.toString(16).uppercase()})",
+            "📤 傳送 CH5 Unicode：'$char' (U+${codepoint.toString(16).uppercase()})",
             ConnectionLogger.LogLevel.INFO
         )
 
@@ -1691,10 +1676,10 @@ class BleManager(private val context: Context) {
 
         // 傳送到 CH5
         actionQueue.enqueue(BleAction.WriteCharacteristic(data, ch5))
-        actionQueue.enqueue(BleAction.Delay(20))  // HID Unicode 延遲（比 Alt 碼快很多）
+        actionQueue.enqueue(BleAction.Delay(20))
 
-        Log.d(TAG, "✅ HID Unicode 傳送完成：'$char'")
-        ConnectionLogger.log("✅ HID Unicode 傳送完成", ConnectionLogger.LogLevel.DEBUG)
+        Log.d(TAG, "✅ CH5 Unicode 傳送完成：'$char'")
+        ConnectionLogger.log("✅ CH5 Unicode 傳送完成", ConnectionLogger.LogLevel.DEBUG)
     }
 
     /**
@@ -2303,7 +2288,7 @@ class BleManager(private val context: Context) {
     /**
      * 取得硬體型號
      *
-     * 用於判斷是否支援 HID Unicode 模式，決定使用何種文字輸入方式。
+     * 用於判斷是否支援 CH5 Unicode transport，決定使用何種文字輸入方式。
      *
      * @return 硬體型號（連線後可用）
      */
@@ -2470,7 +2455,7 @@ class BleManager(private val context: Context) {
      * 根據 Device Information Service 的 Hardware Version 判斷硬體型號。
      *
      * 識別邏輯：
-     * - Hardware Version 包含 "ESP32-S3" → ESP32-S3 Evo（支援 HID Unicode）
+     * - Hardware Version 包含 "ESP32-S3" → ESP32-S3 Evo（支援 CH5 Unicode transport）
      * - Model Number 包含 "TiComposite" → 原廠 TI
      * - Model Number 包含 "WchComposite" → 原廠 WCH
      * - 其他 → UNKNOWN（預設為原廠模式，使用 Big5 Alt 碼）
@@ -2484,7 +2469,7 @@ class BleManager(private val context: Context) {
             hwVer.contains("ESP32-S3", ignoreCase = true) -> {
                 Log.i(TAG, "🚀 偵測到 ESP32-S3 Evo 硬體")
                 ConnectionLogger.log(
-                    "🚀 偵測到 ESP32-S3 Evo 硬體（支援 HID Unicode，速度提升 6 倍）",
+                    "🚀 偵測到 ESP32-S3 Evo 硬體（支援 HID／CH5 自動分流）",
                     ConnectionLogger.LogLevel.INFO
                 )
                 EmulStickHardware.ESP32S3_EVO

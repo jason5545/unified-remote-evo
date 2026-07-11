@@ -13,7 +13,7 @@ import kotlin.coroutines.CoroutineContext
  * - ALT_CODE：Alt+X Unicode 模式（穩定，支援所有 Unicode，約 170ms/字元）
  * - BIG5_ALT_CODE：Big5 Alt 碼混合模式（ASCII 用 HID 約 50ms/字元，中文用 Big5 Alt 碼約 600ms/字元）
  *
- * 注意：ESP32-S3 Evo 不使用此設定，永遠使用 HID Unicode 模式（最快）
+ * 注意：ESP32-S3 Evo 不使用此設定；ASCII 走標準 HID，非 ASCII 才走 CH5。
  */
 enum class BleTextInputMode {
     /** Alt+X Unicode 模式（支援所有 Unicode，穩定可靠，約 170ms/字元）*/
@@ -28,7 +28,7 @@ enum class BleTextInputMode {
  *
  * 使用混合模式支援中英文輸入：
  * - ASCII 字元：HID 直接傳送（快速）
- * - 中文字元：Alt+X Unicode（Windows 原生支援）
+ * - 中文字元：Windows Alt+X 相容路徑（僅限支援的 Windows 程式）
  */
 class BleKeyboardController(
     private val bleManager: BleManager
@@ -49,7 +49,7 @@ class BleKeyboardController(
     /**
      * 設定文字輸入模式
      *
-     * 僅對原廠 EmulStick（TI/WCH）有效，ESP32-S3 Evo 永遠使用 HID Unicode 模式。
+     * 僅對原廠 EmulStick（TI/WCH）有效；ESP32-S3 Evo 使用 HID／CH5 自動分流。
      *
      * @param mode 輸入模式（ALT_CODE 或 BIG5_ALT_CODE）
      */
@@ -93,7 +93,7 @@ class BleKeyboardController(
     /**
      * 根據硬體型號和使用者設定選擇最佳輸入模式
      *
-     * - ESP32-S3 Evo：使用 HID Unicode 模式（快速，~40ms/字元，忽略 textInputMode）
+     * - ESP32-S3 Evo：ASCII 使用標準 HID，非 ASCII 使用 CH5（忽略 textInputMode）
      * - 原廠 TI/WCH：根據 textInputMode 選擇
      *   - ALT_CODE：Alt+X Unicode 模式（~170ms/字元，穩定可靠）
      *   - BIG5_ALT_CODE：Big5 Alt 碼混合模式（ASCII 約 50ms/字元，中文約 600ms/字元）
@@ -103,8 +103,7 @@ class BleKeyboardController(
 
         when (hardwareType) {
             EmulStickHardware.ESP32S3_EVO -> {
-                // ESP32-S3 Evo：使用 HID Unicode 模式（最快）
-                sendTextUnicode(text)
+                sendTextForEsp32(text)
             }
             else -> {
                 // 原廠 TI/WCH：根據使用者設定選擇模式
@@ -123,20 +122,25 @@ class BleKeyboardController(
     }
 
     /**
-     * 使用 HID Unicode 模式輸入文字（ESP32-S3 Evo 專用）
+     * 使用 ESP32-S3 專用的文字分流。
      *
-     * 使用 CH5 characteristic 直接傳送 Unicode 字元，
-     * 速度比 Alt+X Unicode 快 4.25 倍（~40ms vs ~170ms）。
+     * ASCII 必須使用標準 HID keyboard report。只有無法映射成 HID 的非 ASCII
+     * 字元才送到 CH5，交給目前韌體的 Windows Alt+X 相容路徑。
      *
      * @param text 要輸入的文字
      */
-    private suspend fun sendTextUnicode(text: String) {
+    private suspend fun sendTextForEsp32(text: String) {
         for (char in text) {
-            when (char) {
-                '\n' -> bleManager.sendKeyPress(0, HidReportBuilder.KeyboardUsage.KEY_ENTER)
-                '\t' -> bleManager.sendKeyPress(0, HidReportBuilder.KeyboardUsage.KEY_TAB)
-                else -> {
-                    // 直接傳送 Unicode（CH5）
+            when (Esp32TextRouter.pathFor(char)) {
+                Esp32TextPath.ENTER ->
+                    bleManager.sendKeyPress(0, HidReportBuilder.KeyboardUsage.KEY_ENTER)
+                Esp32TextPath.TAB ->
+                    bleManager.sendKeyPress(0, HidReportBuilder.KeyboardUsage.KEY_TAB)
+                Esp32TextPath.HID_KEYBOARD -> {
+                    val (modifier, keyCode) = checkNotNull(AsciiToHidMapper.mapAsciiToHid(char))
+                    bleManager.sendKeyPress(modifier, keyCode)
+                }
+                Esp32TextPath.CH5_UNICODE -> {
                     bleManager.sendUnicodeChar(char)
                 }
             }
