@@ -71,6 +71,8 @@ object GattConstants {
 
     /** 取得加密文字 */
     const val CMD_GET_CIPHERTEXT: Byte = 0x91.toByte()  // -111
+    const val CMD_CLIPBOARD_STATUS: Byte = 0xD1.toByte()
+    const val CMD_GET_CLIPBOARD_BRIDGE: Byte = 0xD2.toByte()
 
     /** 設定通用參數 */
     const val CMD_SET_COMMON: Byte = 0x40.toByte()  // 64

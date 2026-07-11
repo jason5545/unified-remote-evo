@@ -13,7 +13,8 @@ import kotlin.coroutines.CoroutineContext
  * - ALT_CODE：Alt+X Unicode 模式（穩定，支援所有 Unicode，約 170ms/字元）
  * - BIG5_ALT_CODE：Big5 Alt 碼混合模式（ASCII 用 HID 約 50ms/字元，中文用 Big5 Alt 碼約 600ms/字元）
  *
- * 注意：ESP32-S3 Evo 不使用此設定；ASCII 走標準 HID，非 ASCII 才走 CH5。
+ * 注意：ESP32-S3 Evo 不使用此設定；ASCII 走標準 HID，含非 ASCII 的整段文字
+ * 先走 Clipboard Bridge，helper 不可用時才 fallback 到 CH5。
  */
 enum class BleTextInputMode {
     /** Alt+X Unicode 模式（支援所有 Unicode，穩定可靠，約 170ms/字元）*/
@@ -93,7 +94,7 @@ class BleKeyboardController(
     /**
      * 根據硬體型號和使用者設定選擇最佳輸入模式
      *
-     * - ESP32-S3 Evo：ASCII 使用標準 HID，非 ASCII 使用 CH5（忽略 textInputMode）
+     * - ESP32-S3 Evo：ASCII 使用標準 HID，非 ASCII 優先使用 Clipboard Bridge（忽略 textInputMode）
      * - 原廠 TI/WCH：根據 textInputMode 選擇
      *   - ALT_CODE：Alt+X Unicode 模式（~170ms/字元，穩定可靠）
      *   - BIG5_ALT_CODE：Big5 Alt 碼混合模式（ASCII 約 50ms/字元，中文約 600ms/字元）
@@ -124,13 +125,38 @@ class BleKeyboardController(
     /**
      * 使用 ESP32-S3 專用的文字分流。
      *
-     * ASCII 必須使用標準 HID keyboard report。只有無法映射成 HID 的非 ASCII
-     * 字元才送到 CH5，交給目前韌體的 Windows Alt+X 相容路徑。
+     * ASCII 必須使用標準 HID keyboard report。只要包含無法映射的 Unicode，
+     * 就先把整段 UTF-8 交給 Clipboard Bridge；安全失敗時才逐字走 CH5。
      *
      * @param text 要輸入的文字
      */
     private suspend fun sendTextForEsp32(text: String) {
-        for (char in text) {
+        val needsUnicode = text.any { Esp32TextRouter.pathFor(it) == Esp32TextPath.CH5_UNICODE }
+        if (needsUnicode) {
+            when (val bridge = bleManager.sendClipboardBridgeText(text)) {
+                ClipboardBridgeAttempt.Pasted -> {
+                    Log.d(TAG, "✅ Clipboard Bridge 已貼上整段 UTF-8 文字")
+                    return
+                }
+                is ClipboardBridgeAttempt.SafeFallback -> {
+                    Log.w(TAG, "Clipboard Bridge fallback：${bridge.reason}")
+                }
+                is ClipboardBridgeAttempt.Failed -> {
+                    Log.e(TAG, bridge.reason)
+                    return
+                }
+            }
+        }
+
+        var offset = 0
+        while (offset < text.length) {
+            val codePoint = text.codePointAt(offset)
+            if (codePoint > Char.MAX_VALUE.code) {
+                bleManager.sendUnicodeCodePoint(codePoint)
+                offset += Character.charCount(codePoint)
+                continue
+            }
+            val char = codePoint.toChar()
             when (Esp32TextRouter.pathFor(char)) {
                 Esp32TextPath.ENTER ->
                     bleManager.sendKeyPress(0, HidReportBuilder.KeyboardUsage.KEY_ENTER)
@@ -144,6 +170,7 @@ class BleKeyboardController(
                     bleManager.sendUnicodeChar(char)
                 }
             }
+            offset += 1
         }
     }
 

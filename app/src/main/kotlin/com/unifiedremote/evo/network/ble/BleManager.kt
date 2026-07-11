@@ -13,10 +13,14 @@ import android.os.Looper
 import android.os.ParcelUuid
 import android.util.Log
 import com.unifiedremote.evo.network.ConnectionLogger
+import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.withTimeoutOrNull
+import java.util.concurrent.ConcurrentHashMap
+import java.util.concurrent.atomic.AtomicInteger
 
 /**
  * LED 狀態資料類別（NumLock/CapsLock/ScrollLock）
@@ -371,6 +375,9 @@ class BleManager(private val context: Context) {
 
     /** 驗證是否完成 */
     private var isAuthenticationComplete = false
+    @Volatile private var clipboardBridgeQuery: CompletableDeferred<Boolean>? = null
+    private val pendingClipboardStatuses = ConcurrentHashMap<Int, CompletableDeferred<Int>>()
+    private val nextClipboardMessageId = AtomicInteger(1)
 
     // 掃描逾時（單段掃描，與原廠一致）
     private val TOTAL_SCAN_DURATION_MS = 4000L  // 4 秒
@@ -1000,6 +1007,25 @@ class BleManager(private val context: Context) {
 
                                 Log.i(TAG, "🔍 偵測到裝置模式：$deviceMode")
                                 ConnectionLogger.log("🔍 偵測到裝置模式：$deviceMode", ConnectionLogger.LogLevel.INFO)
+                            }
+                        }
+                        GattConstants.CMD_GET_CLIPBOARD_BRIDGE -> {
+                            val ready = data.size >= 5 &&
+                                data[1].toInt() == 1 &&
+                                (data[2].toInt() and 0xFF) == ClipboardBridgeProtocol.VERSION
+                            clipboardBridgeQuery?.complete(ready)
+                            clipboardBridgeQuery = null
+                            Log.d(TAG, "Clipboard Bridge helper ready=$ready")
+                        }
+                        GattConstants.CMD_CLIPBOARD_STATUS -> {
+                            if (data.size >= 4) {
+                                val messageId = (data[1].toInt() and 0xFF) or
+                                    ((data[2].toInt() and 0xFF) shl 8)
+                                val clipboardStatus = data[3].toInt() and 0xFF
+                                if (clipboardStatus != ClipboardBridgeProtocol.STATUS_QUEUED) {
+                                    pendingClipboardStatuses[messageId]?.complete(clipboardStatus)
+                                }
+                                Log.d(TAG, "Clipboard Bridge #$messageId status=0x${clipboardStatus.toString(16)}")
                             }
                         }
                     }
@@ -1634,6 +1660,11 @@ class BleManager(private val context: Context) {
      * @param char Unicode 字元
      */
     suspend fun sendUnicodeChar(char: Char) {
+        sendUnicodeCodePoint(char.code)
+    }
+
+    /** 傳送完整 Unicode scalar，避免 supplementary-plane 字元被拆成 surrogate。 */
+    suspend fun sendUnicodeCodePoint(codepoint: Int) {
         if (!isConnected()) {
             Log.w(TAG, "未連線，無法傳送 Unicode 字元")
             return
@@ -1660,10 +1691,14 @@ class BleManager(private val context: Context) {
             return
         }
 
-        val codepoint = char.code
-        Log.d(TAG, "📤 傳送 Unicode 字元：'$char' (U+${codepoint.toString(16).uppercase()})")
+        if (!Character.isValidCodePoint(codepoint) || codepoint in 0xD800..0xDFFF) {
+            Log.w(TAG, "拒絕無效 Unicode code point：0x${codepoint.toString(16)}")
+            return
+        }
+        val display = String(Character.toChars(codepoint))
+        Log.d(TAG, "📤 傳送 Unicode 字元：'$display' (U+${codepoint.toString(16).uppercase()})")
         ConnectionLogger.log(
-            "📤 傳送 CH5 Unicode：'$char' (U+${codepoint.toString(16).uppercase()})",
+            "📤 傳送 CH5 Unicode：'$display' (U+${codepoint.toString(16).uppercase()})",
             ConnectionLogger.LogLevel.INFO
         )
 
@@ -1678,8 +1713,74 @@ class BleManager(private val context: Context) {
         actionQueue.enqueue(BleAction.WriteCharacteristic(data, ch5))
         actionQueue.enqueue(BleAction.Delay(20))
 
-        Log.d(TAG, "✅ CH5 Unicode 傳送完成：'$char'")
+        Log.d(TAG, "✅ CH5 Unicode 傳送完成：'$display'")
         ConnectionLogger.log("✅ CH5 Unicode 傳送完成", ConnectionLogger.LogLevel.DEBUG)
+    }
+
+    suspend fun sendClipboardBridgeText(text: String): ClipboardBridgeAttempt {
+        if (!isConnected() || hardwareType != EmulStickHardware.ESP32S3_EVO ||
+            !supportsClipboardBridgeFirmware()) {
+            return ClipboardBridgeAttempt.SafeFallback("接收器不支援 Clipboard Bridge")
+        }
+        val ch2 = ch2Characteristic
+            ?: return ClipboardBridgeAttempt.SafeFallback("CH2 characteristic 不可用")
+        val sysId = systemId
+            ?: return ClipboardBridgeAttempt.SafeFallback("System ID 尚未就緒")
+        if (sysId.size < 8) {
+            return ClipboardBridgeAttempt.SafeFallback("System ID 長度不足")
+        }
+        val command = commandCharacteristic
+            ?: return ClipboardBridgeAttempt.SafeFallback("COMMAND characteristic 不可用")
+
+        val query = CompletableDeferred<Boolean>()
+        clipboardBridgeQuery?.cancel()
+        clipboardBridgeQuery = query
+        val queryCommand = byteArrayOf(
+            GattConstants.CMD_GET_CLIPBOARD_BRIDGE,
+            sysId[6],
+            sysId[7]
+        )
+        actionQueue.enqueue(BleAction.WriteCharacteristic(queryCommand, command))
+        val helperReady = withTimeoutOrNull(1_500) { query.await() } ?: false
+        if (clipboardBridgeQuery === query) clipboardBridgeQuery = null
+        if (!helperReady) {
+            return ClipboardBridgeAttempt.SafeFallback("目標端 Clipboard Bridge helper 尚未連線")
+        }
+
+        val messageId = nextClipboardMessageId.getAndUpdate { current ->
+            if (current >= 0xFFFF) 1 else current + 1
+        }
+        val frames = try {
+            ClipboardBridgeProtocol.frames(text, messageId)
+        } catch (error: IllegalArgumentException) {
+            return ClipboardBridgeAttempt.SafeFallback(error.message ?: "Clipboard Bridge 封包建立失敗")
+        }
+
+        val status = CompletableDeferred<Int>()
+        pendingClipboardStatuses[messageId] = status
+        frames.forEach { frame ->
+            actionQueue.enqueue(BleAction.WriteCharacteristic(frame, ch2))
+        }
+
+        val terminalStatus = withTimeoutOrNull(12_000) { status.await() }
+        pendingClipboardStatuses.remove(messageId)
+        return when {
+            terminalStatus == ClipboardBridgeProtocol.STATUS_PASTED -> ClipboardBridgeAttempt.Pasted
+            terminalStatus != null && ClipboardBridgeProtocol.allowsSafeFallback(terminalStatus) ->
+                ClipboardBridgeAttempt.SafeFallback("Clipboard Bridge 回報 0x${terminalStatus.toString(16)}")
+            terminalStatus != null -> ClipboardBridgeAttempt.Failed(
+                "Clipboard Bridge 回報 0x${terminalStatus.toString(16)}；為避免重複貼上，不自動重送"
+            )
+            else -> ClipboardBridgeAttempt.Failed(
+                "Clipboard Bridge ACK 逾時；目標端可能已貼上，為避免重複不自動重送"
+            )
+        }
+    }
+
+    private fun supportsClipboardBridgeFirmware(): Boolean {
+        val parts = firmwareVersion?.split('.')?.mapNotNull { it.toIntOrNull() } ?: return false
+        if (parts.size < 2) return false
+        return parts[0] > 1 || (parts[0] == 1 && parts[1] >= 2)
     }
 
     /**
@@ -2381,6 +2482,10 @@ class BleManager(private val context: Context) {
         softwareVersion = null
         hardwareType = EmulStickHardware.UNKNOWN
         isAuthenticationComplete = false
+        clipboardBridgeQuery?.complete(false)
+        clipboardBridgeQuery = null
+        pendingClipboardStatuses.values.forEach { it.complete(0x87) }
+        pendingClipboardStatuses.clear()
 
         if (_connectionState.value !is BleConnectionState.Error) {
             _connectionState.value = BleConnectionState.Disconnected
