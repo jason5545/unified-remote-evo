@@ -6,9 +6,9 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 
 /**
- * XInput (Xbox 360) 控制器
+ * XInput 手把控制器（Xbox 360 / Xbox One GIP）
  *
- * 實作 EmulStick 的 Xbox 360 控制器模式，支援：
+ * 實作 EmulStick 的手把控制器模式，支援：
  * - 雙搖桿（左/右）
  * - 雙扳機（LT/RT）
  * - D-Pad（方向鍵）
@@ -16,9 +16,10 @@ import kotlinx.coroutines.flow.asStateFlow
  *
  * 技術要點：
  * - 使用 CH1 characteristic (0xF801) 傳送 HID Report
- * - 20-byte Xbox 360 HID Report 格式
+ * - 20-byte Xbox 360 HID Report 格式（ESP32-S3 Evo 端會轉譯成 GIP input payload）
  * - 透過 BLECMD_SET_EMULDEVICE (0x50) 切換模式
- * - VID/PID: Microsoft Xbox 360 Controller (0x045E/0x028E)
+ * - ESP32-S3 Evo：VID/PID = Microsoft Xbox One GIP (0x045E/0x02EA)
+ * - 原廠 TI/WCH：維持 Microsoft Xbox 360 Controller (0x045E/0x028E)
  *
  * 參考：EMULSTICK_XINPUT_ANALYSIS.md
  */
@@ -67,9 +68,11 @@ class BleXInputController(private val bleManager: BleManager) {
     // ============ 模式切換 ============
 
     /**
-     * 切換到 Xbox 360 模式
+     * 切換到 Xbox 手把模式
      *
-     * 傳送 BLECMD_SET_EMULDEVICE 指令，將 EmulStick 切換為 Xbox 360 控制器模式。
+     * 傳送 BLECMD_SET_EMULDEVICE 指令，將 EmulStick 切換為手把模式。
+     * ESP32-S3 Evo（GIP 韌體）使用 Xbox One PID (0x02EA)；
+     * 原廠 TI/WCH 維持 Xbox 360 XInput 行為 (0x028E)。
      * 切換後，CH1 將用於傳送 Xbox 360 HID Report，鍵盤功能將不可用。
      *
      * @return Result<Unit> 成功或失敗
@@ -83,6 +86,10 @@ class BleXInputController(private val bleManager: BleManager) {
                 return Result.failure(Exception("SystemID 長度不足（預期 8 bytes，實際 ${systemId.size} bytes）"))
             }
 
+            // ESP32-S3 Evo（GIP 韌體）使用 Xbox One PID；原廠硬體維持原始行為。
+            val isEvoHardware = bleManager.getHardwareType() == EmulStickHardware.ESP32S3_EVO
+            val targetPid = if (isEvoHardware) GattConstants.XBOXONE_PID else GattConstants.XBOX360_PID
+
             // 建立切換指令：[CMD][SystemID[6]][SystemID[7]][VID_Low][VID_High][PID_Low][PID_High]
             val command = byteArrayOf(
                 GattConstants.CMD_SET_EMULDEVICE,
@@ -90,13 +97,13 @@ class BleXInputController(private val bleManager: BleManager) {
                 systemId[7],
                 (GattConstants.XBOX360_VID and 0xFF).toByte(),
                 ((GattConstants.XBOX360_VID shr 8) and 0xFF).toByte(),
-                (GattConstants.XBOX360_PID and 0xFF).toByte(),
-                ((GattConstants.XBOX360_PID shr 8) and 0xFF).toByte()
+                (targetPid and 0xFF).toByte(),
+                ((targetPid shr 8) and 0xFF).toByte()
             )
 
-            Log.d(TAG, "傳送 XInput 模式切換指令：[${command.joinToString(" ") { "%02X".format(it) }}]")
+            Log.d(TAG, "傳送手把模式切換指令（PID=0x${targetPid.toString(16)}）：[${command.joinToString(" ") { "%02X".format(it) }}]")
             com.unifiedremote.evo.network.ConnectionLogger.log(
-                "🎮 切換到 Xbox 360 模式",
+                "🎮 切換到手把模式（${if (isEvoHardware) "Xbox One GIP" else "Xbox 360"}）",
                 com.unifiedremote.evo.network.ConnectionLogger.LogLevel.INFO
             )
 

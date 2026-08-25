@@ -9,7 +9,7 @@ enum class DeviceMode {
     /** 組合模式（預設）：鍵盤 + 滑鼠 + 手把 */
     COMPOSITE,
 
-    /** XInput 模式：Xbox 360 控制器 */
+    /** 手把模式：Xbox 360 XInput（原廠）或 Xbox One GIP（ESP32-S3 Evo） */
     XINPUT,
 
     /** 單鍵盤模式 */
@@ -26,8 +26,10 @@ enum class DeviceMode {
          */
         fun fromVidPid(vid: Int, pid: Int): DeviceMode {
             return when {
-                // Xbox 360 控制器（XInput 模式）
-                vid == GattConstants.XBOX360_VID && pid == GattConstants.XBOX360_PID -> XINPUT
+                // Xbox 手把模式：045E:028E（原廠 / 舊 EVO 韌體的 Xbox 360 XInput）、
+                // 045E:02EA（ESP32-S3 Evo 新韌體的 Xbox One GIP）
+                vid == GattConstants.XBOX360_VID &&
+                    (pid == GattConstants.XBOX360_PID || pid == GattConstants.XBOXONE_PID) -> XINPUT
 
                 // TI/WCH Composite（組合模式）
                 (vid == GattConstants.TI_COMPOSITE_VID && pid == GattConstants.TI_COMPOSITE_PID) ||

@@ -85,9 +85,12 @@ object GattConstants {
 
     // ============ 模式切換常數 ============
 
-    /** Xbox 360 控制器裝置識別碼（XInput 模式） */
+    /** Xbox 360 控制器裝置識別碼（XInput 模式，原廠 TI/WCH 與舊版韌體） */
     const val XBOX360_VID = 0x045E  // 1118, Microsoft
     const val XBOX360_PID = 0x028E  // 654, Xbox 360 Controller
+
+    /** Xbox One GIP 裝置識別碼（僅 ESP32-S3 Evo 新韌體；原廠硬體不使用） */
+    const val XBOXONE_PID = 0x02EA  // 746, Xbox One GIP (XGIP10)
 
     /** TI Composite 裝置識別碼（組合模式） */
     const val TI_COMPOSITE_VID = 0x0451  // 1105, Texas Instruments
