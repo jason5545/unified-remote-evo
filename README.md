@@ -241,6 +241,14 @@ app/build/outputs/apk/debug/app-debug.apk
 
 ### 4. 安裝與使用
 
+連線畫面會顯示藍牙關閉、缺少權限或硬體不支援的原因。藍牙關閉時，
+點「開啟藍牙」、藍牙或 BLE 會開啟系統提示；開啟後畫面會立即更新。
+點最近的藍牙裝置也會先要求開啟藍牙，準備完成後接續連線。
+
+手機透過 TCP 連到 EVO Mac 時維持 Mac 鍵位。Option＋Z 跟實體 Mac 鍵盤一樣
+切換接管；接管後由 Mac 沿用原有 BLE 路徑轉送到 EVO Stick，解除後控制 Mac。
+手機 TCP 斷線會解除由手機啟用的接管。
+
 #### TCP 模式（Unified Remote）
 1. 將 APK 傳輸到 Android 裝置
 2. 安裝 APK（需允許安裝未知來源）

@@ -3,6 +3,8 @@ package com.unifiedremote.evo
 import android.Manifest
 import android.annotation.SuppressLint
 import android.bluetooth.BluetoothDevice
+import android.bluetooth.BluetoothAdapter
+import android.bluetooth.BluetoothManager
 import android.content.ComponentName
 import android.content.Context
 import android.content.Intent
@@ -31,6 +33,7 @@ import com.unifiedremote.evo.data.SensitivityManager
 import com.unifiedremote.evo.data.ThemeManager
 import com.unifiedremote.evo.data.ThemeMode
 import com.unifiedremote.evo.network.ConnectionLogger
+import com.unifiedremote.evo.network.BluetoothSetupStatus
 import com.unifiedremote.evo.network.UnifiedConnectionManager
 import com.unifiedremote.evo.service.RemoteControlService
 import com.unifiedremote.evo.ui.screens.DebugScreen
@@ -56,6 +59,7 @@ class MainActivity : ComponentActivity() {
     private var shouldAutoConnect by mutableStateOf(true)  // 是否應該自動連線
     private var serviceStartRequested = false
     private var notificationPermissionRequested = false
+    private var enableBluetoothAfterPermission = false
 
     // 背景服務
     private var remoteControlService: RemoteControlService? = null
@@ -77,11 +81,51 @@ class MainActivity : ComponentActivity() {
 
     // 藍牙權限請求
     private val bluetoothPermissionLauncher = registerForActivityResult(
-        ActivityResultContracts.RequestPermission()
-    ) { isGranted ->
-        bluetoothPermissionGranted = isGranted
-        if (!isGranted) {
-            ConnectionLogger.log("藍牙權限被拒絕", ConnectionLogger.LogLevel.WARNING)
+        ActivityResultContracts.RequestMultiplePermissions()
+    ) { _ ->
+        refreshBluetoothPermissionStatus()
+        bleViewModel.onVisible()
+        val shouldEnable = enableBluetoothAfterPermission
+        enableBluetoothAfterPermission = false
+        if (shouldEnable && bluetoothPermissionGranted) {
+            requestEnableBluetooth()
+        }
+    }
+
+    private val enableBluetoothLauncher = registerForActivityResult(
+        ActivityResultContracts.StartActivityForResult()
+    ) { _ ->
+        refreshBluetoothPermissionStatus()
+        bleViewModel.onVisible()
+    }
+
+    private fun refreshBluetoothPermissionStatus() {
+        bluetoothPermissionGranted = Build.VERSION.SDK_INT < Build.VERSION_CODES.S ||
+            ContextCompat.checkSelfPermission(this, Manifest.permission.BLUETOOTH_CONNECT) == PackageManager.PERMISSION_GRANTED
+    }
+
+    private fun requestBluetoothSetupPermissions() {
+        enableBluetoothAfterPermission = true
+        val permissions = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+            arrayOf(Manifest.permission.BLUETOOTH_CONNECT, Manifest.permission.BLUETOOTH_SCAN)
+        } else {
+            arrayOf(Manifest.permission.ACCESS_FINE_LOCATION, Manifest.permission.ACCESS_COARSE_LOCATION)
+        }
+        bluetoothPermissionLauncher.launch(permissions)
+    }
+
+    @SuppressLint("MissingPermission")
+    private fun requestEnableBluetooth() {
+        refreshBluetoothPermissionStatus()
+        if (!bluetoothPermissionGranted) {
+            requestBluetoothSetupPermissions()
+            return
+        }
+        val adapter = (getSystemService(Context.BLUETOOTH_SERVICE) as? BluetoothManager)?.adapter ?: return
+        if (!adapter.isEnabled) {
+            enableBluetoothLauncher.launch(Intent(BluetoothAdapter.ACTION_REQUEST_ENABLE))
+        } else {
+            bleViewModel.onVisible()
         }
     }
 
@@ -162,6 +206,10 @@ class MainActivity : ComponentActivity() {
                     ConnectionLogger.log("自動連線延後：尚未取得藍牙權限", ConnectionLogger.LogLevel.INFO)
                     return@LaunchedEffect
                 }
+                if (requiresBluetooth && !bleUiState.isBluetoothOn) {
+                    autoConnectStatus = "藍牙已關閉，開啟後會自動連線"
+                    return@LaunchedEffect
+                }
 
                 if (lastDevice.type == com.unifiedremote.evo.network.ConnectionType.BLE_EMULSTICK) {
                     if (!bleUiState.permissionsGranted || !bleUiState.isBluetoothOn) {
@@ -203,9 +251,10 @@ class MainActivity : ComponentActivity() {
             }
 
             // ✅ 普通藍牙可用性（保留原邏輯）
-            val bluetoothAvailable = remember { derivedStateOf {
-                bluetoothPermissionGranted && UnifiedConnectionManager.isBluetoothAvailable()
-            } }.value
+            val bluetoothAvailable = bluetoothPermissionGranted && bleUiState.isBluetoothOn
+            val bluetoothSetupStatus = BluetoothSetupStatus.from(
+                bleViewModel.isBluetoothSupported, bleUiState.permissionsGranted, bleUiState.isBluetoothOn
+            )
 
             UnifiedRemoteEvoTheme(darkTheme = useDarkTheme) {
                 Surface(
@@ -214,6 +263,7 @@ class MainActivity : ComponentActivity() {
                 ) {
                     UnifiedRemoteEvoApp(
                         onConnectTcp = { host, port ->
+                            shouldAutoConnect = false
                             connectTcp(
                                 host = host,
                                 port = port,
@@ -226,6 +276,7 @@ class MainActivity : ComponentActivity() {
                             )
                         },
                         onConnectBluetooth = { device ->
+                            shouldAutoConnect = false
                             connectBluetooth(
                                 device = device,
                                 onSuccess = { mouse, keyboard, deviceId ->
@@ -238,10 +289,12 @@ class MainActivity : ComponentActivity() {
                         },
                         // ✅ 使用 ViewModel 的掃描方法
                         onStartBleScan = {
+                            shouldAutoConnect = false
                             bleViewModel.startScan()
                         },
                         // ✅ 改用 MAC 地址連線
                         onConnectBleDevice = { address ->
+                            shouldAutoConnect = false
                             connectBleEmulstickDeviceByAddress(
                                 address = address,
                                 onSuccess = { mouse, keyboard, deviceId ->
@@ -253,6 +306,7 @@ class MainActivity : ComponentActivity() {
                             )
                         },
                         onConnectSaved = { device ->
+                            shouldAutoConnect = false
                             connectSaved(
                                 device = device,
                                 onSuccess = { mouse, keyboard, deviceId ->
@@ -298,6 +352,9 @@ class MainActivity : ComponentActivity() {
                             }
                         },
                         bluetoothAvailable = bluetoothAvailable,
+                        bluetoothSetupStatus = bluetoothSetupStatus,
+                        onEnableBluetooth = { requestEnableBluetooth() },
+                        onRequestBluetoothPermissions = { requestBluetoothSetupPermissions() },
                         // ✅ 使用 ViewModel 的狀態
                         bleAvailable = bleUiState.canScan,
                         bleScannedDevices = bleUiState.scannedDevices,
@@ -322,6 +379,7 @@ class MainActivity : ComponentActivity() {
      */
     override fun onResume() {
         super.onResume()
+        refreshBluetoothPermissionStatus()
         // ✅ 觸發 ViewModel 重新檢查權限和藍牙狀態
         bleViewModel.onVisible()
     }
@@ -790,6 +848,9 @@ fun UnifiedRemoteEvoApp(
     onDisconnect: () -> Unit,
     onXInputModeChange: (Boolean) -> Unit,
     bluetoothAvailable: Boolean,
+    bluetoothSetupStatus: BluetoothSetupStatus,
+    onEnableBluetooth: () -> Unit,
+    onRequestBluetoothPermissions: () -> Unit,
     bleAvailable: Boolean,
     // ✅ 改用 SavedDevice 而不是 BluetoothDevice
     bleScannedDevices: List<SavedDevice>,
@@ -843,6 +904,9 @@ fun UnifiedRemoteEvoApp(
                         onRemoveSaved(device)
                     },
                     bluetoothAvailable = bluetoothAvailable,
+                    bluetoothSetupStatus = bluetoothSetupStatus,
+                    onEnableBluetooth = onEnableBluetooth,
+                    onRequestBluetoothPermissions = onRequestBluetoothPermissions,
                     bleAvailable = bleAvailable,
                     pairedDevices = pairedDevices,
                     bleScannedDevices = bleScannedDevices,

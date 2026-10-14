@@ -228,6 +228,17 @@ app/build/outputs/apk/debug/app-debug.apk
 
 ### 4. Installation and Usage
 
+The connection screen explains when Bluetooth is off, permissions are missing,
+or the hardware is unavailable. With Bluetooth off, the enable button and the
+Bluetooth/BLE mode chips open Android's system enable prompt. The screen updates
+when Bluetooth becomes ready. Selecting a saved Bluetooth receiver waits for
+setup, then resumes that connection.
+
+When connected to EVO Mac over TCP, the phone retains Mac key semantics.
+Option+Z toggles the Mac's grab just like a physical Mac keyboard. Grabbed input
+uses the Mac's existing BLE forwarder to EVO Stick; released input controls the
+Mac. Disconnecting TCP releases a grab initiated by that phone.
+
 #### TCP Mode (Unified Remote)
 1. Transfer APK to Android device
 2. Install APK (allow installation from unknown sources)

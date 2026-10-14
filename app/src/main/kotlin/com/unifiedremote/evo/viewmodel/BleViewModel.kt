@@ -37,6 +37,7 @@ class BleViewModel(application: Application) : AndroidViewModel(application) {
 
     // BLE 管理器（internal 以便 MainActivity 可以訪問）
     internal val bleManager: BleManager = BleManager(context)
+    val isBluetoothSupported: Boolean = (context.getSystemService(Context.BLUETOOTH_SERVICE) as? BluetoothManager)?.adapter != null
 
     // XInput 控制器（延遲初始化，連線後才建立）
     private var _xInputController: BleXInputController? = null
@@ -105,7 +106,7 @@ class BleViewModel(application: Application) : AndroidViewModel(application) {
     init {
         // 註冊藍牙狀態廣播接收器
         val filter = IntentFilter(BluetoothAdapter.ACTION_STATE_CHANGED)
-        context.registerReceiver(bluetoothStateReceiver, filter)
+        ContextCompat.registerReceiver(context, bluetoothStateReceiver, filter, ContextCompat.RECEIVER_EXPORTED)
         ConnectionLogger.log("📡 已註冊藍牙狀態監聽器", ConnectionLogger.LogLevel.DEBUG)
 
         // 初始檢查
@@ -300,7 +301,7 @@ class BleViewModel(application: Application) : AndroidViewModel(application) {
         val bluetoothManager = context.getSystemService(Context.BLUETOOTH_SERVICE) as? BluetoothManager
         val bluetoothAdapter = bluetoothManager?.adapter
 
-        val isBluetoothOn = bluetoothAdapter?.isEnabled == true
+        val isBluetoothOn = try { bluetoothAdapter?.isEnabled == true } catch (_: SecurityException) { false }
         _isBluetoothOn.value = isBluetoothOn
 
         ConnectionLogger.log(

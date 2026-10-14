@@ -25,6 +25,7 @@ import androidx.compose.ui.unit.dp
 import com.unifiedremote.evo.data.SavedDevice
 import com.unifiedremote.evo.network.ConnectionLogger
 import com.unifiedremote.evo.network.ConnectionType
+import com.unifiedremote.evo.network.BluetoothSetupStatus
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 
@@ -46,6 +47,9 @@ fun ServerConfigScreen(
     bleScannedDevices: List<SavedDevice>,
     bleConnectionState: com.unifiedremote.evo.network.ble.BleConnectionState,
     savedDevices: List<SavedDevice>,
+    bluetoothSetupStatus: BluetoothSetupStatus = BluetoothSetupStatus.READY,
+    onEnableBluetooth: () -> Unit = {},
+    onRequestBluetoothPermissions: () -> Unit = {},
     autoConnectStatus: String? = null,
     modifier: Modifier = Modifier
 ) {
@@ -54,6 +58,35 @@ fun ServerConfigScreen(
     var port by remember { mutableStateOf(TextFieldValue("9512")) }
     var isConnecting by remember { mutableStateOf(false) }
     val scope = rememberCoroutineScope()
+    var pendingBluetoothDevice by remember { mutableStateOf<SavedDevice?>(null) }
+
+    fun connectSaved(device: SavedDevice) {
+        isConnecting = true
+        onConnectSaved(device)
+        scope.launch {
+            delay(3000)
+            isConnecting = false
+        }
+    }
+
+    LaunchedEffect(bluetoothSetupStatus, pendingBluetoothDevice) {
+        if (bluetoothSetupStatus == BluetoothSetupStatus.READY) {
+            pendingBluetoothDevice?.let { device ->
+                pendingBluetoothDevice = null
+                connectSaved(device)
+            }
+        }
+    }
+
+    fun selectBluetoothMode(type: ConnectionType) {
+        pendingBluetoothDevice = null
+        selectedType = type
+        when (bluetoothSetupStatus) {
+            BluetoothSetupStatus.OFF -> onEnableBluetooth()
+            BluetoothSetupStatus.PERMISSION_REQUIRED -> onRequestBluetoothPermissions()
+            else -> Unit
+        }
+    }
 
     // 取得版本資訊
     val context = LocalContext.current
@@ -99,6 +132,8 @@ fun ServerConfigScreen(
                 .align(Alignment.CenterHorizontally)
         )
 
+        BluetoothSetupPrompt(bluetoothSetupStatus, onEnableBluetooth, onRequestBluetoothPermissions)
+
         // 歷史裝置列表
         if (savedDevices.isNotEmpty()) {
             Text(
@@ -119,11 +154,14 @@ fun ServerConfigScreen(
                         SavedDeviceItem(
                             device = device,
                             onClick = {
-                                isConnecting = true
-                                onConnectSaved(device)
-                                scope.launch {
-                                    delay(3000)
-                                    isConnecting = false
+                                if (device.type != ConnectionType.TCP && bluetoothSetupStatus != BluetoothSetupStatus.READY) {
+                                    selectBluetoothMode(device.type)
+                                    if (bluetoothSetupStatus != BluetoothSetupStatus.UNSUPPORTED) {
+                                        pendingBluetoothDevice = device
+                                    }
+                                } else {
+                                    pendingBluetoothDevice = null
+                                    connectSaved(device)
                                 }
                             },
                             onRemove = { onRemoveSaved(device) },
@@ -146,6 +184,7 @@ fun ServerConfigScreen(
         }
 
         // 連線類型選擇
+
         Text(
             text = "連線類型",
             style = MaterialTheme.typography.titleSmall,
@@ -163,7 +202,7 @@ fun ServerConfigScreen(
             // TCP 按鈕
             FilterChip(
                 selected = selectedType == ConnectionType.TCP,
-                onClick = { selectedType = ConnectionType.TCP },
+                onClick = { pendingBluetoothDevice = null; selectedType = ConnectionType.TCP },
                 label = { Text("WiFi") },
                 modifier = Modifier.weight(1f)
             )
@@ -171,18 +210,18 @@ fun ServerConfigScreen(
             // 藍牙按鈕
             FilterChip(
                 selected = selectedType == ConnectionType.BLUETOOTH,
-                onClick = { selectedType = ConnectionType.BLUETOOTH },
+                onClick = { selectBluetoothMode(ConnectionType.BLUETOOTH) },
                 label = { Text("藍牙") },
-                enabled = bluetoothAvailable,
+                enabled = bluetoothSetupStatus != BluetoothSetupStatus.UNSUPPORTED,
                 modifier = Modifier.weight(1f)
             )
 
             // BLE 按鈕
             FilterChip(
                 selected = selectedType == ConnectionType.BLE_EMULSTICK,
-                onClick = { selectedType = ConnectionType.BLE_EMULSTICK },
+                onClick = { selectBluetoothMode(ConnectionType.BLE_EMULSTICK) },
                 label = { Text("BLE") },
-                enabled = bleAvailable,
+                enabled = bluetoothSetupStatus != BluetoothSetupStatus.UNSUPPORTED,
                 modifier = Modifier.weight(1f)
             )
         }
@@ -244,7 +283,7 @@ fun ServerConfigScreen(
         }
 
         // 藍牙裝置列表
-        if (selectedType == ConnectionType.BLUETOOTH) {
+        if (selectedType == ConnectionType.BLUETOOTH && bluetoothAvailable) {
             if (pairedDevices.isEmpty()) {
                 Text(
                     text = "未找到已配對的藍牙裝置\n請先在系統設定中配對裝置",
@@ -301,7 +340,7 @@ fun ServerConfigScreen(
         }
 
         // BLE EmulStick 連線
-        if (selectedType == ConnectionType.BLE_EMULSTICK) {
+        if (selectedType == ConnectionType.BLE_EMULSTICK && bluetoothSetupStatus == BluetoothSetupStatus.READY) {
             val isScanning = bleConnectionState is com.unifiedremote.evo.network.ble.BleConnectionState.Scanning
             val isBleConnecting = bleConnectionState is com.unifiedremote.evo.network.ble.BleConnectionState.Connecting
             val clipboardManager = LocalClipboardManager.current
