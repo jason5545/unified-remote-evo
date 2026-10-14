@@ -24,7 +24,9 @@ data class Packet(
     @BinaryField("Hash", 13) var hash: Int? = null,     // Hash for syncing
     @BinaryField("Capabilities", 14) var capabilities: Capabilities? = null,
     @BinaryField("Run", 15) var run: Action? = null,
-    @BinaryField("Layout", 16) var layout: Layout? = null   // Layout 結構（用於控制指令）
+    @BinaryField("Layout", 16) var layout: Layout? = null,  // Layout 結構（用於控制指令）
+    @BinaryField("HostInputDisabled", 17) var hostInputDisabled: Boolean? = null,
+    @BinaryField("HostInputError", 18) var hostInputError: String? = null
 )
 
 /**
@@ -79,7 +81,8 @@ data class Capabilities(
     @BinaryField("Actions", 5) var actions: Boolean? = null,
     @BinaryField("Grid", 6) var grid: Boolean? = null,
     @BinaryField("Loading", 7) var loading: Boolean? = null,
-    @BinaryField("Business", 8) var business: Boolean? = null
+    @BinaryField("Business", 8) var business: Boolean? = null,
+    @BinaryField("HostInputControl", 9) var hostInputControl: Boolean? = null
 )
 
 /**

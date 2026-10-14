@@ -308,7 +308,8 @@ private fun TouchpadModeUI(
                 },
                 isBleMode = bleManager != null,
                 isXInputMode = isXInputMode,
-                onXInputToggle = onXInputToggle
+                onXInputToggle = onXInputToggle,
+                keyboardController = keyboardController
             )
         }
     }
@@ -529,11 +530,13 @@ fun MenuBottomSheetContent(
     onSwitchDevice: () -> Unit,
     isBleMode: Boolean = false,
     isXInputMode: Boolean = false,
-    onXInputToggle: ((Boolean) -> Unit)? = null
+    onXInputToggle: ((Boolean) -> Unit)? = null,
+    keyboardController: KeyboardController? = null
 ) {
     Column(
         modifier = Modifier
             .fillMaxWidth()
+            .verticalScroll(rememberScrollState())
             .padding(16.dp)
     ) {
         Text(
@@ -541,6 +544,39 @@ fun MenuBottomSheetContent(
             style = MaterialTheme.typography.titleLarge,
             modifier = Modifier.padding(bottom = 16.dp)
         )
+
+        if (keyboardController != null) {
+            val hostInputState by keyboardController.hostInputControlState.collectAsStateWithLifecycle()
+            val disableHostInput by keyboardController.disableHostInputWhileConnected.collectAsStateWithLifecycle()
+            if (hostInputState.supported) {
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Column(modifier = Modifier.weight(1f)) {
+                        Text("停用 Mac 本機輸入", style = MaterialTheme.typography.titleSmall)
+                        Text("TCP 斷線自動恢復", style = MaterialTheme.typography.bodySmall)
+                    }
+                    Switch(
+                        checked = disableHostInput,
+                        onCheckedChange = { keyboardController.setDisableHostInputWhileConnected(it) },
+                        enabled = !hostInputState.pending
+                    )
+                }
+                Text(
+                    text = hostInputState.error ?: when {
+                        hostInputState.pending -> "正在設定…"
+                        hostInputState.disabled -> "Mac 鍵盤、滑鼠與觸控板已停用"
+                        else -> "Mac 本機輸入可用"
+                    },
+                    style = MaterialTheme.typography.bodySmall,
+                    color = if (hostInputState.error != null) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.onSurfaceVariant
+                )
+                Spacer(modifier = Modifier.height(12.dp))
+                Divider()
+                Spacer(modifier = Modifier.height(12.dp))
+            }
+        }
 
         // 切換裝置
         Button(

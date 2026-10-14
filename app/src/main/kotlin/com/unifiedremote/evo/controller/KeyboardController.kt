@@ -20,6 +20,11 @@ open class KeyboardController(
     override val coroutineContext: CoroutineContext = Dispatchers.Main
     val remotePlatform: StateFlow<RemotePlatform> get() = connection.remotePlatform
     val layout: RemoteKeyboardLayout get() = RemoteKeyboardLayout(remotePlatform.value)
+    val hostInputControlState get() = connection.hostInputControlState
+    val disableHostInputWhileConnected get() = connection.disableHostInputWhileConnected
+    fun setDisableHostInputWhileConnected(disabled: Boolean) {
+        launch { connection.setDisableHostInputWhileConnected(disabled) }
+    }
 
     fun shortcut(key: String) = press(key, listOf(layout.primaryModifier))
     fun switchApplication() = press("tab", layout.applicationSwitchModifiers)

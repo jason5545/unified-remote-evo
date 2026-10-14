@@ -5,6 +5,8 @@ import kotlinx.coroutines.*
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.withLock
 import java.io.*
 import java.net.InetSocketAddress
 import java.net.Socket
@@ -16,7 +18,8 @@ import kotlin.coroutines.CoroutineContext
  */
 class ConnectionManager(
     private val host: String,
-    private val port: Int = 9512
+    private val port: Int = 9512,
+    private val desiredHostInputDisabled: () -> Boolean = { false }
 ) : CoroutineScope {
 
     private val job = SupervisorJob()
@@ -54,11 +57,15 @@ class ConnectionManager(
     private var handshakeCompleted = false
     private var serverSession: String? = null
     private var serverCapabilities: com.unifiedremote.evo.data.Capabilities? = null
+    private val sendMutex = Mutex()
+    private var hostInputState = HostInputControlState()
+    private var hostInputTimeoutJob: Job? = null
 
     var onConnected: (() -> Unit)? = null
     var onDisconnected: (() -> Unit)? = null
     var onPacketReceived: ((Packet) -> Unit)? = null
     var onRemotePlatformChanged: ((RemotePlatform) -> Unit)? = null
+    var onHostInputControlChanged: ((HostInputControlState) -> Unit)? = null
     var onLog: ((String, ConnectionLogger.LogLevel) -> Unit)? = null
 
     /**
@@ -137,6 +144,9 @@ class ConnectionManager(
         handshakeCompleted = false
         serverSession = null
         onRemotePlatformChanged?.invoke(RemotePlatform.UNKNOWN)
+        hostInputTimeoutJob?.cancel()
+        hostInputTimeoutJob = null
+        publishHostInputState(HostInputControlState())
 
         // 取消所有背景任務
         heartbeatJob?.cancel()
@@ -195,31 +205,33 @@ class ConnectionManager(
     }
 
     suspend fun send(packet: Packet) = withContext(Dispatchers.IO) {
-        if (!isConnected) {
-            log("未連線，無法傳送封包 (isConnected=$isConnected, socket=${socket != null}, output=${output != null})", ConnectionLogger.LogLevel.WARNING)
-            return@withContext
-        }
-
-        try {
-            if (packet.source == null) {
-                packet.source = deviceId
+        sendMutex.withLock {
+            if (!isConnected) {
+                log("未連線，無法傳送封包 (isConnected=$isConnected, socket=${socket != null}, output=${output != null})", ConnectionLogger.LogLevel.WARNING)
+                return@withLock
             }
 
-            val data = PacketSerializer.serialize(packet)
+            try {
+                if (packet.source == null) {
+                    packet.source = deviceId
+                }
 
-            // 重要：長度 = 資料長度 + 1（加密標記）
-            output?.writeInt(data.size + 1)
-            output?.writeByte(0)  // 0 = 未加密
-            output?.write(data)
-            output?.flush()
+                val data = PacketSerializer.serialize(packet)
 
-            val actionInfo = packet.action?.let { "Action=$it" } ?: packet.run?.name ?: "keepalive"
-            log("傳送封包: $actionInfo (${data.size} bytes)", ConnectionLogger.LogLevel.DEBUG)
+                // 重要：長度 = 資料長度 + 1（加密標記）
+                output?.writeInt(data.size + 1)
+                output?.writeByte(0)  // 0 = 未加密
+                output?.write(data)
+                output?.flush()
 
-        } catch (e: Exception) {
-            log("傳送封包失敗: ${e.message}", ConnectionLogger.LogLevel.ERROR)
-            disconnect()
-            scheduleReconnect()
+                val actionInfo = packet.action?.let { "Action=$it" } ?: packet.run?.name ?: "keepalive"
+                log("傳送封包: $actionInfo (${data.size} bytes)", ConnectionLogger.LogLevel.DEBUG)
+
+            } catch (e: Exception) {
+                log("傳送封包失敗: ${e.message}", ConnectionLogger.LogLevel.ERROR)
+                disconnect()
+                scheduleReconnect()
+            }
         }
     }
 
@@ -398,6 +410,13 @@ class ConnectionManager(
                 1 -> handleAuthResponse(packet)       // 認證回應
             }
         } else {
+            if (action == HostInputControl.ACTION.toInt()) {
+                val state = HostInputControl.response(packet, serverSession) ?: return
+                hostInputTimeoutJob?.cancel()
+                hostInputTimeoutJob = null
+                publishHostInputState(state)
+                return
+            }
             // 握手完成後，處理一般封包
             log("收到封包: ${packet.run?.name}", ConnectionLogger.LogLevel.INFO)
             withContext(Dispatchers.Main) {
@@ -408,6 +427,9 @@ class ConnectionManager(
 
     private suspend fun handleInitialHandshake(packet: Packet) {
         onRemotePlatformChanged?.invoke(RemotePlatform.fromWireName(packet.platform))
+        publishHostInputState(HostInputControlState(
+            supported = RemotePlatform.fromWireName(packet.platform) == RemotePlatform.MAC && packet.capabilities?.hostInputControl == true
+        ))
         log("處理初始握手", ConnectionLogger.LogLevel.INFO)
 
         serverSession = packet.session
@@ -471,6 +493,26 @@ class ConnectionManager(
 
         // 載入 Basic Input Remote (Action=3, Request=3)
         loadRemote("Relmtech.Basic Input")
+        sendHostInputPreference()
+    }
+
+    private fun publishHostInputState(state: HostInputControlState) {
+        hostInputState = state
+        onHostInputControlChanged?.invoke(state)
+    }
+
+    suspend fun sendHostInputPreference() {
+        val session = serverSession ?: return
+        if (!handshakeCompleted || !hostInputState.supported || !isConnected) return
+        hostInputTimeoutJob?.cancel()
+        publishHostInputState(hostInputState.copy(pending = true, error = null))
+        hostInputTimeoutJob = launch {
+            delay(5_000)
+            if (hostInputState.pending) {
+                publishHostInputState(hostInputState.copy(pending = false, error = "未收到 Mac 確認，請重新連線"))
+            }
+        }
+        send(HostInputControl.request(desiredHostInputDisabled(), session))
     }
 
     private suspend fun loadRemote(remoteId: String) {

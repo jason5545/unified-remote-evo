@@ -20,6 +20,11 @@ class UnifiedConnectionManager(
     private var connectionType: ConnectionType? = null
     private val _remotePlatform = MutableStateFlow(RemotePlatform.UNKNOWN)
     val remotePlatform: StateFlow<RemotePlatform> = _remotePlatform.asStateFlow()
+    private val hostInputPreferences = context.getSharedPreferences("tcp_host_input", Context.MODE_PRIVATE)
+    private val _disableHostInputWhileConnected = MutableStateFlow(hostInputPreferences.getBoolean("disable_while_connected", false))
+    val disableHostInputWhileConnected: StateFlow<Boolean> = _disableHostInputWhileConnected.asStateFlow()
+    private val _hostInputControlState = MutableStateFlow(HostInputControlState())
+    val hostInputControlState: StateFlow<HostInputControlState> = _hostInputControlState.asStateFlow()
 
     var onConnected: (() -> Unit)? = null
     var onDisconnected: (() -> Unit)? = null
@@ -32,7 +37,7 @@ class UnifiedConnectionManager(
     suspend fun connectTcp(host: String, port: Int = 9512) {
         disconnect()
 
-        val manager = ConnectionManager(host, port).apply {
+        val manager = ConnectionManager(host, port) { _disableHostInputWhileConnected.value }.apply {
             this.onConnected = this@UnifiedConnectionManager.onConnected
             this.onDisconnected = this@UnifiedConnectionManager.onDisconnected
             this.onPacketReceived = this@UnifiedConnectionManager.onPacketReceived
@@ -42,6 +47,9 @@ class UnifiedConnectionManager(
         }
         manager.onRemotePlatformChanged = { platform ->
             if (currentConnection === manager) _remotePlatform.value = platform
+        }
+        manager.onHostInputControlChanged = { state ->
+            if (currentConnection === manager) _hostInputControlState.value = state
         }
 
         currentConnection = manager
@@ -74,6 +82,7 @@ class UnifiedConnectionManager(
      */
     fun disconnect() {
         _remotePlatform.value = RemotePlatform.UNKNOWN
+        _hostInputControlState.value = HostInputControlState()
         when (val conn = currentConnection) {
             is ConnectionManager -> conn.disconnect()
             is BluetoothConnectionManager -> conn.disconnect()
@@ -106,6 +115,7 @@ class UnifiedConnectionManager(
      */
     fun close() {
         _remotePlatform.value = RemotePlatform.UNKNOWN
+        _hostInputControlState.value = HostInputControlState()
         when (val conn = currentConnection) {
             is ConnectionManager -> conn.close()
             is BluetoothConnectionManager -> conn.close()
@@ -118,6 +128,12 @@ class UnifiedConnectionManager(
      * 取得當前連線類型
      */
     fun getCurrentConnectionType(): ConnectionType? = connectionType
+
+    suspend fun setDisableHostInputWhileConnected(disabled: Boolean) {
+        _disableHostInputWhileConnected.value = disabled
+        hostInputPreferences.edit().putBoolean("disable_while_connected", disabled).apply()
+        (currentConnection as? ConnectionManager)?.sendHostInputPreference()
+    }
 
     /**
      * 是否已連線
