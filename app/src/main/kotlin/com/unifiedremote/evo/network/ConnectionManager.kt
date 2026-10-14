@@ -58,6 +58,7 @@ class ConnectionManager(
     var onConnected: (() -> Unit)? = null
     var onDisconnected: (() -> Unit)? = null
     var onPacketReceived: ((Packet) -> Unit)? = null
+    var onRemotePlatformChanged: ((RemotePlatform) -> Unit)? = null
     var onLog: ((String, ConnectionLogger.LogLevel) -> Unit)? = null
 
     /**
@@ -135,6 +136,7 @@ class ConnectionManager(
         isConnected = false
         handshakeCompleted = false
         serverSession = null
+        onRemotePlatformChanged?.invoke(RemotePlatform.UNKNOWN)
 
         // 取消所有背景任務
         heartbeatJob?.cancel()
@@ -405,6 +407,7 @@ class ConnectionManager(
     }
 
     private suspend fun handleInitialHandshake(packet: Packet) {
+        onRemotePlatformChanged?.invoke(RemotePlatform.fromWireName(packet.platform))
         log("處理初始握手", ConnectionLogger.LogLevel.INFO)
 
         serverSession = packet.session

@@ -59,6 +59,13 @@
 - 🔐 設定強密碼，不要暴露在公開網路
 - 已實作並測試
 
+連到 EVO Mac TCP 接收端時，Android 會從握手的 `Platform` 自動辨識 Mac。
+輸入面板改用 Control／Shift／Option／Command；複製、貼上、儲存等快捷鍵改送
+Command，切換 App 用 Command+Tab，結束 App 用 Command+Q。
+「Mac 功能鍵」提供螢幕亮度、視窗總覽、Spotlight、鍵盤背光、播放控制與音量，
+也可勾選「標準 F1–F12」。亮度與背光仍依 Mac 硬體支援而定。
+Windows、未辨識的伺服器與 BLE 接收器保留原本的按鍵；斷線或切換裝置後會重新辨識。
+
 **模式 1-B：藍牙連線** ⚠️
 - 透過 **傳統藍牙（RFCOMM）** 連線到 Unified Remote Server
 - 適用於 **近距離無網路**環境

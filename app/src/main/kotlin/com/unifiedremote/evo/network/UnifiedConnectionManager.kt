@@ -6,6 +6,8 @@ import com.unifiedremote.evo.data.Packet
 import com.unifiedremote.evo.data.Action
 import kotlinx.coroutines.*
 import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.asStateFlow
 
 /**
  * 統一連線管理器
@@ -16,6 +18,8 @@ class UnifiedConnectionManager(
 ) {
     private var currentConnection: Any? = null  // ConnectionManager 或 BluetoothConnectionManager
     private var connectionType: ConnectionType? = null
+    private val _remotePlatform = MutableStateFlow(RemotePlatform.UNKNOWN)
+    val remotePlatform: StateFlow<RemotePlatform> = _remotePlatform.asStateFlow()
 
     var onConnected: (() -> Unit)? = null
     var onDisconnected: (() -> Unit)? = null
@@ -35,6 +39,9 @@ class UnifiedConnectionManager(
             this.onLog = { msg, level ->
                 this@UnifiedConnectionManager.onLog?.invoke("[TCP] $msg", level)
             }
+        }
+        manager.onRemotePlatformChanged = { platform ->
+            if (currentConnection === manager) _remotePlatform.value = platform
         }
 
         currentConnection = manager
@@ -66,6 +73,7 @@ class UnifiedConnectionManager(
      * 中斷連線
      */
     fun disconnect() {
+        _remotePlatform.value = RemotePlatform.UNKNOWN
         when (val conn = currentConnection) {
             is ConnectionManager -> conn.disconnect()
             is BluetoothConnectionManager -> conn.disconnect()
@@ -97,6 +105,7 @@ class UnifiedConnectionManager(
      * 關閉連線管理器
      */
     fun close() {
+        _remotePlatform.value = RemotePlatform.UNKNOWN
         when (val conn = currentConnection) {
             is ConnectionManager -> conn.close()
             is BluetoothConnectionManager -> conn.close()

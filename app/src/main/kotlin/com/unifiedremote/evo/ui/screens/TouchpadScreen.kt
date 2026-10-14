@@ -35,6 +35,7 @@ import androidx.compose.ui.text.input.OffsetMapping
 import com.unifiedremote.evo.ui.util.NullCharFilterOffsetMapping
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.unifiedremote.evo.controller.KeyboardController
+import com.unifiedremote.evo.controller.RemoteKeyboardLayout
 import com.unifiedremote.evo.controller.MouseController
 import com.unifiedremote.evo.data.SavedDevice
 import com.unifiedremote.evo.network.ConnectionLogger
@@ -930,7 +931,9 @@ fun InputPanelContentBody(
     keyboardController: KeyboardController,
     modifier: Modifier = Modifier
 ) {
-    var modifierKeys by remember { mutableStateOf(setOf<String>()) }
+    val remotePlatform by keyboardController.remotePlatform.collectAsStateWithLifecycle()
+    val layout = remember(remotePlatform) { RemoteKeyboardLayout(remotePlatform) }
+    var modifierKeys by remember(remotePlatform) { mutableStateOf(setOf<String>()) }
 
     // ✅ 原廠技巧：預填充 1000 個空字元（使刪除鍵總是有效）
     val placeholderText = remember { "\u0000".repeat(1000) }
@@ -1104,7 +1107,8 @@ fun InputPanelContentBody(
             modifier = Modifier.fillMaxWidth(),
             horizontalArrangement = Arrangement.spacedBy(8.dp)
         ) {
-            listOf("ctrl", "shift", "alt", "win").forEach { mod ->
+            layout.modifiers.forEach { modifierKey ->
+                val mod = modifierKey.key
                 FilterChip(
                     selected = modifierKeys.contains(mod),
                     onClick = {
@@ -1114,7 +1118,7 @@ fun InputPanelContentBody(
                             modifierKeys + mod
                         }
                     },
-                    label = { Text(mod.uppercase()) },
+                    label = { Text(modifierKey.label) },
                     modifier = Modifier.weight(1f)
                 )
             }
@@ -1155,7 +1159,7 @@ fun InputPanelContentBody(
             ) {
                 val text = textInput.text.replace("\u0000", "")
                 val preview = buildString {
-                    modifierKeys.forEach { append(it.uppercase()).append(" + ") }
+                    modifierKeys.forEach { append(layout.modifierLabel(it)).append(" + ") }
                     append(if (text.isEmpty()) "..." else text)
                 }
                 Text("傳送: $preview")
@@ -1188,7 +1192,7 @@ fun InputPanelContentBody(
 
         // 可摺疊區塊：F1-F12
         ExpandableSection(
-            title = "F 鍵",
+            title = if (layout.isMac) "Mac 功能鍵" else "F 鍵",
             expanded = showFKeys,
             onToggle = { showFKeys = !showFKeys }
         ) {
@@ -1218,7 +1222,9 @@ fun InputPanelContent(
     keyboardController: KeyboardController,
     onDismiss: () -> Unit
 ) {
-    var modifierKeys by remember { mutableStateOf(setOf<String>()) }
+    val remotePlatform by keyboardController.remotePlatform.collectAsStateWithLifecycle()
+    val layout = remember(remotePlatform) { RemoteKeyboardLayout(remotePlatform) }
+    var modifierKeys by remember(remotePlatform) { mutableStateOf(setOf<String>()) }
 
     // ✅ 原廠技巧：預填充 1000 個空字元（使刪除鍵總是有效）
     val placeholderText = remember { "\u0000".repeat(1000) }
@@ -1406,7 +1412,8 @@ fun InputPanelContent(
             modifier = Modifier.fillMaxWidth(),
             horizontalArrangement = Arrangement.spacedBy(8.dp)
         ) {
-            listOf("ctrl", "shift", "alt", "win").forEach { mod ->
+            layout.modifiers.forEach { modifierKey ->
+                val mod = modifierKey.key
                 FilterChip(
                     selected = modifierKeys.contains(mod),
                     onClick = {
@@ -1416,7 +1423,7 @@ fun InputPanelContent(
                             modifierKeys + mod
                         }
                     },
-                    label = { Text(mod.uppercase()) },
+                    label = { Text(modifierKey.label) },
                     modifier = Modifier.weight(1f)
                 )
             }
@@ -1457,7 +1464,7 @@ fun InputPanelContent(
             ) {
                 val text = textInput.text.replace("\u0000", "")
                 val preview = buildString {
-                    modifierKeys.forEach { append(it.uppercase()).append(" + ") }
+                    modifierKeys.forEach { append(layout.modifierLabel(it)).append(" + ") }
                     append(if (text.isEmpty()) "..." else text)
                 }
                 Text("傳送: $preview")
@@ -1490,7 +1497,7 @@ fun InputPanelContent(
 
         // 可摺疊區塊：F1-F12
         ExpandableSection(
-            title = "F 鍵",
+            title = if (layout.isMac) "Mac 功能鍵" else "F 鍵",
             expanded = showFKeys,
             onToggle = { showFKeys = !showFKeys }
         ) {
@@ -1654,43 +1661,35 @@ fun FunctionKeysContent(keyboardController: KeyboardController) {
 // F 鍵內容
 @Composable
 fun FKeysContent(keyboardController: KeyboardController) {
+    val remotePlatform by keyboardController.remotePlatform.collectAsStateWithLifecycle()
+    val layout = remember(remotePlatform) { RemoteKeyboardLayout(remotePlatform) }
+    var standardFKeys by remember(remotePlatform) { mutableStateOf(false) }
     Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.spacedBy(8.dp)
-        ) {
-            for (i in 1..4) {
-                Button(
-                    onClick = { keyboardController.press("f$i", emptyList()) },
-                    modifier = Modifier.weight(1f).height(45.dp)
-                ) {
-                    Text("F$i")
-                }
+        if (layout.isMac) {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Checkbox(checked = standardFKeys, onCheckedChange = { standardFKeys = it })
+                Text("標準 F1–F12", style = MaterialTheme.typography.bodyMedium)
             }
         }
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.spacedBy(8.dp)
-        ) {
-            for (i in 5..8) {
-                Button(
-                    onClick = { keyboardController.press("f$i", emptyList()) },
-                    modifier = Modifier.weight(1f).height(45.dp)
-                ) {
-                    Text("F$i")
-                }
-            }
-        }
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.spacedBy(8.dp)
-        ) {
-            for (i in 9..12) {
-                Button(
-                    onClick = { keyboardController.press("f$i", emptyList()) },
-                    modifier = Modifier.weight(1f).height(45.dp)
-                ) {
-                    Text("F$i")
+        (1..12).chunked(4).forEach { row ->
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(8.dp)
+            ) {
+                row.forEach { number ->
+                    val function = layout.functionKey(number, standardFKeys)
+                    Button(
+                        onClick = { keyboardController.functionKey(number, standardFKeys) },
+                        contentPadding = PaddingValues(horizontal = 4.dp, vertical = 6.dp),
+                        modifier = Modifier.weight(1f).height(if (layout.isMac && !standardFKeys) 60.dp else 45.dp)
+                    ) {
+                        Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                            if (layout.isMac && !standardFKeys) {
+                                Text("F$number", style = MaterialTheme.typography.labelSmall)
+                            }
+                            Text(function.label, style = MaterialTheme.typography.labelMedium)
+                        }
+                    }
                 }
             }
         }
@@ -1755,6 +1754,8 @@ fun ShortcutsDialogContent(
     keyboardController: KeyboardController,
     onDismiss: () -> Unit
 ) {
+    val remotePlatform by keyboardController.remotePlatform.collectAsStateWithLifecycle()
+    val layout = remember(remotePlatform) { RemoteKeyboardLayout(remotePlatform) }
     // 添加日誌以調試UI佈局問題
     ConnectionLogger.log("快捷鍵對話框初始化", ConnectionLogger.LogLevel.DEBUG)
     
@@ -1845,13 +1846,13 @@ fun ShortcutsDialogContent(
                 horizontalArrangement = Arrangement.spacedBy(12.dp)
             ) {
                 Button(
-                    onClick = { keyboardController.press("s", listOf("ctrl")) },
+                    onClick = { keyboardController.shortcut("s") },
                     modifier = Modifier.weight(1f).height(56.dp)
                 ) {
                     Text("儲存", style = MaterialTheme.typography.bodyMedium)
                 }
                 Button(
-                    onClick = { keyboardController.press("f", listOf("ctrl")) },
+                    onClick = { keyboardController.shortcut("f") },
                     modifier = Modifier.weight(1f).height(56.dp)
                 ) {
                     Text("尋找", style = MaterialTheme.typography.bodyMedium)
@@ -1866,16 +1867,16 @@ fun ShortcutsDialogContent(
                 horizontalArrangement = Arrangement.spacedBy(12.dp)
             ) {
                 Button(
-                    onClick = { keyboardController.press("w", listOf("ctrl")) },
+                    onClick = { keyboardController.shortcut("w") },
                     modifier = Modifier.weight(1f).height(56.dp)
                 ) {
                     Text("關閉", style = MaterialTheme.typography.bodyMedium)
                 }
                 Button(
-                    onClick = { keyboardController.press("tab", listOf("alt")) },
+                    onClick = { keyboardController.switchApplication() },
                     modifier = Modifier.weight(1f).height(56.dp)
                 ) {
-                    Text("Alt+Tab", style = MaterialTheme.typography.bodyMedium)
+                    Text(layout.applicationSwitchLabel, style = MaterialTheme.typography.bodyMedium)
                 }
             }
             
@@ -1887,12 +1888,12 @@ fun ShortcutsDialogContent(
                 horizontalArrangement = Arrangement.Center // 居中單個按鈕
             ) {
                 Button(
-                    onClick = { keyboardController.press("f4", listOf("alt")) },
+                    onClick = { keyboardController.closeApplication() },
                     modifier = Modifier
                         .width(200.dp) // 固定寬度而不是weight
                         .height(56.dp)
                 ) {
-                    Text("Alt+F4", style = MaterialTheme.typography.bodyMedium)
+                    Text(layout.applicationCloseLabel, style = MaterialTheme.typography.bodyMedium)
                 }
             }
             

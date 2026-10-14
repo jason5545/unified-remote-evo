@@ -7,6 +7,8 @@ import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlin.coroutines.CoroutineContext
+import com.unifiedremote.evo.network.RemotePlatform
+import kotlinx.coroutines.flow.StateFlow
 
 /**
  * 鍵盤控制器
@@ -16,6 +18,13 @@ open class KeyboardController(
 ) : CoroutineScope {
 
     override val coroutineContext: CoroutineContext = Dispatchers.Main
+    val remotePlatform: StateFlow<RemotePlatform> get() = connection.remotePlatform
+    val layout: RemoteKeyboardLayout get() = RemoteKeyboardLayout(remotePlatform.value)
+
+    fun shortcut(key: String) = press(key, listOf(layout.primaryModifier))
+    fun switchApplication() = press("tab", layout.applicationSwitchModifiers)
+    fun closeApplication() = press(layout.applicationCloseKey, layout.applicationCloseModifiers)
+    fun functionKey(number: Int, standardFKeys: Boolean = false) = press(layout.functionKey(number, standardFKeys).key)
 
     companion object {
         const val REMOTE_ID = "Relmtech.Basic Input"  // 使用已載入的 Remote ID
@@ -138,9 +147,9 @@ open class KeyboardController(
     open fun left() = press(Shortcuts.LEFT)
     open fun right() = press(Shortcuts.RIGHT)
 
-    open fun ctrlC() = press("c", listOf(Shortcuts.CTRL))
-    open fun ctrlV() = press("v", listOf(Shortcuts.CTRL))
-    open fun ctrlX() = press("x", listOf(Shortcuts.CTRL))
-    open fun ctrlZ() = press("z", listOf(Shortcuts.CTRL))
-    open fun ctrlA() = press("a", listOf(Shortcuts.CTRL))
+    open fun ctrlC() = shortcut("c")
+    open fun ctrlV() = shortcut("v")
+    open fun ctrlX() = shortcut("x")
+    open fun ctrlZ() = shortcut("z")
+    open fun ctrlA() = shortcut("a")
 }
